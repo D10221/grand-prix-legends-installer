@@ -37,7 +37,7 @@ INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045  $INSTALLER"
 INSTALLER_SHASUM="5223d8e8c577ec4504fc8c9491b03c61710af263  $INSTALLER"
 GEM_URL="http://gem.grandprixlegends.info/GEM/GEMPackage_2.5.0.32.exe"
 GEM="$GPL_SETUP_HOME/GEMPackage_2.5.0.32.exe"
-GEM_MD5="xxx  $GEM" # TODO
+GEM_MD5="d82cd2428ce28081a4dca6f3e395e95a  $GEM" # TODO
 GEM_SHASUM="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM" # TODO
 WINEPREFIX="$GPL_HOME/pfx"
 DRIVE_DEVICE="/dev/disk/by-label/GPL"
@@ -94,7 +94,7 @@ fi
 function verify()
 {
     local actual=""
-    if   [ ! -z "$(which md5sum)"]; then
+    if   [ ! -z "$(which md5sum)" ]; then
         actual="$(md5sum $1)"
         expected=$2
     elif [ ! -z "$(which shasum)" ]; then
