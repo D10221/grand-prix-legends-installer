@@ -11,6 +11,7 @@
 #  - wget
 #  - wine 
 #  - md5sum
+#  - shasum*
 #  - udisksctl
 #  - file
 #  - grep
@@ -28,54 +29,94 @@ GPL_HOME=~/.local/share/grand-prix-legends
 GPL_SETUP_HOME="$GPL_HOME/setup"
 ISO_URL="https://archive.org/download/grand-prix-legends/GrandPrixLegends.iso"
 ISO=$GPL_SETUP_HOME/grand-prix-legends.iso
-ISO_MD5="c42ff47a96633e28a6d03afa078b1da2"
+ISO_MD5="c42ff47a96633e28a6d03afa078b1da2  $ISO"
+ISO_SHASUM="082542e01a9e63c914a8f34f77ee306531a2aa13  $ISO"
 INSTALLER_URL="http://gem.grandprixlegends.info/gplinstall_beta_1.08.exe"
 INSTALLER="$GPL_SETUP_HOME/gplinstall_beta_1.08.exe"
-INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045"
+INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045  $INSTALLER"
+INSTALLER_SHASUM="5223d8e8c577ec4504fc8c9491b03c61710af263  $INSTALLER"
+GEM_URL="http://gem.grandprixlegends.info/GEM/GEMPackage_2.5.0.32.exe"
+GEM="$GPL_SETUP_HOME/GEMPackage_2.5.0.32.exe"
+GEM_MD5="xxx  $GEM" # TODO
+GEM_SHASUM="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM" # TODO
 WINEPREFIX="$GPL_HOME/pfx"
 DRIVE_DEVICE="/dev/disk/by-label/GPL"
+
+case $OSTYPE in
+linux*)
+    OS=linux
+    ;;
+darwin*)
+    OS=osx
+    ;;
+*)
+    echo "OS '$OSTYPE' not implemented.">&2
+    exit 1
+    ;;
+esac
 
 # check for wine
 WINE="$(which wine)"
 if [ ! -f "$WINE" ]; then
-    echo "can't find wine" >&2
+    echo "can't find wine, get wine on the \$PATH and try again" >&2
     exit 1
-    # TODO: install wine specific version? 
 fi
+
 # create targets
 mkdir -p "$GPL_SETUP_HOME"
 mkdir -p "$WINEPREFIX"
-ls $WINEPREFIX/ -a
-# if isn't downloaded yet
-if [ ! -f "$ISO" ]; then
-    echo "Downloading $ISO_URL"
-    wget $ISO_URL -O "$ISO" \
-    && echo "Saved as $ISO" \
-    || echo "Can't download $ISO_URL"; exit 1
-fi
-# if isn't downloaded yet
-if [ ! -f "$INSTALLER" ]; then
-    echo "Downloading $INSTALLER_URL"
-    wget $INSTALLER_URL -O "$INSTALLER" \
-    && echo "Downloaded $INSTALLER" \
-    || echo "Can't download $INSTALLER_URL"; exit 1
-fi
-# Validate installer
-INSTALLER_MD5_ACTUAL="$(md5sum $INSTALLER)"
-INSTALLER_MD5_EXPECTED="$INSTALLER_MD5  $INSTALLER"
-if [ "$INSTALLER_MD5_ACTUAL" != "$INSTALLER_MD5_EXPECTED" ];then
-    echo  "Invalid INSTALLER signature!">&2
-    echo  "Actual  =$INSTALLER_MD5_ACTUAL"
-    echo  "Expected=$INSTALLER_MD5_EXPECTED"
+#
+# args:
+#   $1  'file'
+#   $2  'url'
+#
+function dowload()
+{
+    if [ ! -f "$1" ]; then
+        return $(wget $2 -O "$1") 
+    fi
+    return 0;
+}
+#
+if ! dowload $ISO $ISO_URL \
+|| ! dowload $INSTALLER $INSTALLER_URL \
+|| ! dowload $GEM $GEM_URL; then
+    echo "Download failed" 
     exit 1
 fi
-# Validate ISO ?
-ISO_MD5_ACTUAL="$(md5sum $ISO)"
-ISO_MD5_EXPECTED="$ISO_MD5  $ISO"
-if [ "$ISO_MD5_ACTUAL" != "$ISO_MD5_EXPECTED" ];then
-    echo  "Invalid ISO signature!">&2
-    echo  "Actual  =$ISO_MD5_ACTUAL"
-    echo  "Expected=$ISO_MD5_EXPECTED"
+
+#
+# Args:
+#   $1  'file'
+#   $2  'md5sum'
+#   $3  'shasum'
+#
+function verify()
+{
+    local actual=""
+    if   [ ! -z "$(which md5sum)"]; then
+        actual="$(md5sum $1)"
+        expected=$2
+    elif [ ! -z "$(which shasum)" ]; then
+        actual="$(shasum $1)"
+        expected=$3
+    else
+        echo "Can't verify $1" >&2
+        return 1    
+    fi
+    if [ "$actual" != "$expected" ];then
+        # echo "Expected $expected"
+        # echo "Actual   $actual"
+        echo "Bad hash: $(basename $1)" >&2
+        return 1
+    fi
+    return 0
+}
+# Validate installer
+if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" \
+|| ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" \
+|| ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
+    echo verify failed
     exit 1
 fi
 #
@@ -106,26 +147,38 @@ function unmountISO()
 #
 # TODO: return mountpoint
 #
-function mounISO()
+function mountISO()
 {
     udisksctl loop-setup -f  $ISO 
     # Mapped file ~/.local/share/grand-prix-legends/setup/grand-prix-legends.iso as /dev/loop18.
 }
 # Mounting the iso 
-if [ "$(file -b --mime-type "$DRIVE_DEVICE")" == "inode/symlink" ]; then 
-    echo ISO already mounted?
+if [[ $OS == "linux" ]]; then 
+    if [ "$(file -b --mime-type "$DRIVE_DEVICE")" == "inode/symlink" ]; then 
+        echo ISO already mounted?
+    else
+        echo Mounting ISO
+        mountISO
+    fi
+    BACKINGFILE=$(getBackingFile) 
+    if ! [ -f "$BACKINGFILE" ] || [ $BACKINGFILE != $ISO ]; then
+        echo "wrong ISO mounted '$BACKINGFILE' ?" >&2
+        exit 1
+    fi
+    MOUNT_POINT=$(getMountpoint) # unneeded
+    if ! [ -d "$MOUNT_POINT" ]; then
+        echo "wrong MountPoint '$MOUNT_POINT' is not Directory?" >&2
+        exit 1
+    fi
+elif [[ $OS == "osx" ]]; then
+    if ! hdiutil mount $ISO; then
+        echo "TODO: Can't mount $(basename $ISO), it may be mounted already?" >&2
+        exit 1
+    fi
+    echo "TODO: You may not find the CD on the Wine drive D: , sorry"
 else
-    echo Mounting ISO
-    mounISO
-fi
-BACKINGFILE=$(getBackingFile) 
-if ! [ -f "$BACKINGFILE" ] || [ $BACKINGFILE != $ISO ]; then
-    echo "wrong ISO mounted '$BACKINGFILE' ?" >&2
+    echo "this shouldn't happen"
     exit 1
-fi
-MOUNT_POINT=$(getMountpoint) # unneeded
-if ! [ -d "$MOUNT_POINT" ]; then
-    echo "wrong MountPoint '$MOUNT_POINT' is not Directory?" >&2
 fi
 
 echo All good: launching installer
