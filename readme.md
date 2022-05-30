@@ -1,4 +1,4 @@
-# Grand Prix Legends installer
+# Grand Prix Legends installer <small>(wip)</small>
 Grand Prix Legends installer for Ubuntu 
 
 It downloads:
