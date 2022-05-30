@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+#
+# Grand Prix Legends installer 
+# Works on: 
+#  - Ubuntu
+#  - Maybe Debian/Ubuntu derivatives
+# Tested on: 
+#  - Ubuntu 20.4
+# Requires:
+#  - bash
+#  - wget
+#  - wine 
+#  - md5sum
+#  - udisksctl
+#  - file
+#  - grep
+# Downloads:
+#  - GrandPrixLegends.iso from archive.org
+#  - gplinstall_beta_1.08.exe from  grandprixlegends.info
+# Description:
+#  - Creates wine prefix, mounts iso and runs the installer
+#
+
+# this script version
+VERSION=0.0.1
+
+GPL_HOME=~/.local/share/grand-prix-legends
+GPL_SETUP_HOME="$GPL_HOME/setup"
+ISO_URL="https://archive.org/download/grand-prix-legends/GrandPrixLegends.iso"
+ISO=$GPL_SETUP_HOME/grand-prix-legends.iso
+ISO_MD5="c42ff47a96633e28a6d03afa078b1da2"
+INSTALLER_URL="http://gem.grandprixlegends.info/gplinstall_beta_1.08.exe"
+INSTALLER="$GPL_SETUP_HOME/gplinstall_beta_1.08.exe"
+INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045"
+WINEPREFIX="$GPL_HOME/pfx"
+DRIVE_DEVICE="/dev/disk/by-label/GPL"
+
+# check for wine
+WINE="$(which wine)"
+if [ ! -f "$WINE" ]; then
+    echo "can't find wine" >&2
+    exit 1
+    # TODO: install wine specific version? 
+fi
+# create targets
+mkdir -p "$GPL_SETUP_HOME"
+mkdir -p "$WINEPREFIX"
+ls $WINEPREFIX/ -a
+# if isn't downloaded yet
+if [ ! -f "$ISO" ]; then
+    echo "Downloading $ISO_URL"
+    wget $ISO_URL -O "$ISO" \
+    && echo "Saved as $ISO" \
+    || echo "Can't download $ISO_URL"; exit 1
+fi
+# if isn't downloaded yet
+if [ ! -f "$INSTALLER" ]; then
+    echo "Downloading $INSTALLER_URL"
+    wget $INSTALLER_URL -O "$INSTALLER" \
+    && echo "Downloaded $INSTALLER" \
+    || echo "Can't download $INSTALLER_URL"; exit 1
+fi
+# Validate installer
+INSTALLER_MD5_ACTUAL="$(md5sum $INSTALLER)"
+INSTALLER_MD5_EXPECTED="$INSTALLER_MD5  $INSTALLER"
+if [ "$INSTALLER_MD5_ACTUAL" != "$INSTALLER_MD5_EXPECTED" ];then
+    echo  "Invalid INSTALLER signature!">&2
+    echo  "Actual  =$INSTALLER_MD5_ACTUAL"
+    echo  "Expected=$INSTALLER_MD5_EXPECTED"
+    exit 1
+fi
+# Validate ISO ?
+ISO_MD5_ACTUAL="$(md5sum $ISO)"
+ISO_MD5_EXPECTED="$ISO_MD5  $ISO"
+if [ "$ISO_MD5_ACTUAL" != "$ISO_MD5_EXPECTED" ];then
+    echo  "Invalid ISO signature!">&2
+    echo  "Actual  =$ISO_MD5_ACTUAL"
+    echo  "Expected=$ISO_MD5_EXPECTED"
+    exit 1
+fi
+#
+function getMountpoint()
+{
+    r="\s+MountPoints:\s+(.*)"
+    info=$(udisksctl info -b "$DRIVE_DEVICE" |grep MountPoints)
+    if [[ "$info"  =~ $r ]] && [ -d "${BASH_REMATCH[1]}" ]; then
+        echo "${BASH_REMATCH[1]}" 
+    fi    
+}
+#
+function getBackingFile()
+{   
+    local info=$(udisksctl info -b "$DRIVE_DEVICE" |grep BackingFile)
+    local r="\s+BackingFile:\s+(.*)"
+    if [[ "$info"  =~ $r  ]]; then
+        echo "${BASH_REMATCH[1]}"
+    fi
+}
+# 
+# Unmount drive/iso
+#
+function unmountISO()
+{
+    udisksctl unmount -b $DRIVE_DEVICE
+}
+#
+# TODO: return mountpoint
+#
+function mounISO()
+{
+    udisksctl loop-setup -f  $ISO 
+    # Mapped file ~/.local/share/grand-prix-legends/setup/grand-prix-legends.iso as /dev/loop18.
+}
+# Mounting the iso 
+if [ "$(file -b --mime-type "$DRIVE_DEVICE")" == "inode/symlink" ]; then 
+    echo ISO already mounted?
+else
+    echo Mounting ISO
+    mounISO
+fi
+BACKINGFILE=$(getBackingFile) 
+if ! [ -f "$BACKINGFILE" ] || [ $BACKINGFILE != $ISO ]; then
+    echo "wrong ISO mounted '$BACKINGFILE' ?" >&2
+    exit 1
+fi
+MOUNT_POINT=$(getMountpoint) # unneeded
+if ! [ -d "$MOUNT_POINT" ]; then
+    echo "wrong MountPoint '$MOUNT_POINT' is not Directory?" >&2
+fi
+
+echo All good: launching installer
+
+# wait for installer to complete
+WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" && unmountISO || unmountISO
+
+# TODO: create create grand-prix-legends launch script
+# TODO: create grand-prix-legends.desktop
+# Display installation details 

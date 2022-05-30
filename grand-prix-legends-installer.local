@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#
+# test locally with specific wine version
+#
+PATH="$PATH:$HOME/wine/winehq-stable_6.0.2~focal-1_amd64/usr/bin" ./grand-prix-legends-installer "$@"
