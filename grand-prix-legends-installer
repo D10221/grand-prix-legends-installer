@@ -45,6 +45,8 @@ DRIVE_DEVICE="/dev/disk/by-label/GPL"
 case $OSTYPE in
 linux*)
     OS=linux
+    # lsb_release -i -s -> Ubuntu # ID
+    # lsb_release -r -s -> 20.04  # release
     ;;
 darwin*)
     OS=osx
