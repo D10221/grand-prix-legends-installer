@@ -128,24 +128,29 @@ linuxInstall() {
     # get the device backing file
     local BACKINGFILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
     # already mounted?
-    if [ -f "$BACKINGFILE" ] && [ $BACKINGFILE == $ISO ]; then  # is mounted
+    if [ -f "$BACKINGFILE" ] && [ $BACKINGFILE == $ISO ]; then # is mounted
         echo "Already mounted $ISO?"
     elif udisksctl loop-setup -f $ISO; then # mount it
         # mounted: update the backing file
         BACKINGFILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
     fi
-    # 
+    #
     if ! [ -f "$BACKINGFILE" ]; then
-        echo "Can't mount '$ISO' file on '$ISO_DEVICE' device!" >&2
+        echo "Can't mount '$ISO' on '$ISO_DEVICE' device!" >&2
         exit 1
     fi
     #
-    if [ $BACKINGFILE != $ISO ];then
-        echo "Wrong '$ISO' file on '$ISO_DEVICE' device?" >&2
+    if [ $BACKINGFILE != $ISO ]; then
+        echo "Wrong '$ISO' on '$ISO_DEVICE' device?" >&2
         exit 1
     fi
-    # run
-    WINEPREFIX="$WINEPREFIX" wine "$INSTALLER"
+    # unattended
+    silent=""
+    if $SILENT; then
+        silent="\\SILENT"
+    fi
+    WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" "$silent" &&
+        WINEPREFIX="$WINEPREFIX" wine "$GEM" "$silent"
     # unmount iso
     if [ -f "$BACKINGFILE" ] && [ $BACKINGFILE == $ISO ] && # is mounted
         !udisksctl unmount -b $ISO_DEVICE; then
@@ -220,21 +225,55 @@ main() {
     esac
 }
 #
+# Uninstall GPL and remove prefix
+#
+uninstall() {    
+    if $YES then
+        if rm -rf $GPL_HOME; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+    read -p "Uninstall GPL and remove prefix (y/n)? " u
+    case $u in
+    y)
+        if rm -rf $GPL_HOME; then
+            return 0
+        else
+            return 1
+        fi
+        ;;
+    n)
+        echo "Uninstall cancelled." >&2
+        ;;
+    *)
+        echo "Unknown option '$u', Uninstall cancelled." >&2
+        return 1
+        ;;
+    esac
+}
+#
 # usage
 #
 usage() {
     echo "usage: '$_filename [options]'"
     echo "options:"
-    echo "-i --install 'install gpl'"
-    echo "-h --help    'show this'"
-    echo "-v --version 'show '$_filename' version'"
+    echo "-i --install   'Install GPL'"
+    echo "-h --help      'Show this'"
+    echo "-v --version   'Show '$_filename' version'"
+    echo "-s --silent    'Try to perform an unattended installation'"
+    echo "-u --uninstall 'Uninstall GPL and remove prefix'"
+    echo "-y 'answer everything 'Yes'"
 }
 #
 if [[ $# -lt 1 ]]; then
     usage
     exit 1
 fi
-while getopts ":hiv-:" o; do
+SILENT=1
+YES=1
+while getopts ":ihvsuy-:" o; do
     case "${o}" in
     -)
         case "${OPTARG}" in
@@ -248,6 +287,20 @@ while getopts ":hiv-:" o; do
         version)
             echo v$VERSION
             exit 1
+            ;;
+        silent)
+            SILENT=0
+            ;;
+        yes)
+            SILENT=0
+            YES=0
+            ;;
+        uninstall)
+            if ! uninstall; then
+                echo "Uninstall error" >&2
+                exit 1
+            fi
+            exit
             ;;
         *)
             echo "Unknown option --${OPTARG}" >&2
@@ -265,6 +318,20 @@ while getopts ":hiv-:" o; do
         ;;
     v)
         echo v$VERSION
+        exit
+        ;;
+    s)
+        SILENT=0
+        ;;
+    y)
+        SILENT=0
+        YES=0
+        ;;
+    u)
+        if ! uninstall; then
+            echo "Uninstall error" >&2
+            exit 1
+        fi
         exit
         ;;
     *)
