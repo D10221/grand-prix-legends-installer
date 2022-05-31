@@ -72,7 +72,7 @@ mkdir -p "$WINEPREFIX"
 #   $1  'file'
 #   $2  'url'
 #
-function dowload()
+dowload()
 {
     if [ ! -f "$1" ]; then
         return $(wget $2 -O "$1") 
@@ -93,7 +93,7 @@ fi
 #   $2  'md5sum'
 #   $3  'shasum'
 #
-function verify()
+verify()
 {
     local actual=""
     if [ ! -z "$(which shasum)" ]; then
@@ -114,7 +114,7 @@ function verify()
     fi
     return 0
 }
-# Validate installer
+# verify
 if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" \
 || ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" \
 || ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
@@ -122,7 +122,7 @@ if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" \
     exit 1
 fi
 #
-function getMountpoint()
+getMountpoint()
 {
     r="\s+MountPoints:\s+(.*)"
     info=$(udisksctl info -b "$ISO_DEVICE" |grep MountPoints)
@@ -131,7 +131,7 @@ function getMountpoint()
     fi    
 }
 #
-function getBackingFile()
+getBackingFile()
 {   
     local info=$(udisksctl info -b "$ISO_DEVICE" |grep BackingFile)
     local r="\s+BackingFile:\s+(.*)"
@@ -142,14 +142,14 @@ function getBackingFile()
 # 
 # Unmount drive/iso
 #
-function unmountISO()
+unmountISO()
 {
     udisksctl unmount -b $ISO_DEVICE
 }
 #
 # TODO: return mountpoint
 #
-function mountISO()
+mountISO()
 {
     udisksctl loop-setup -f  $ISO 
     # Mapped file ~/.local/share/grand-prix-legends/setup/grand-prix-legends.iso as /dev/loop18.
