@@ -246,7 +246,7 @@ while getopts ":hiv-:" o; do
             exit
             ;;
         version)
-            echo $VERSION
+            echo v$VERSION
             exit 1
             ;;
         *)
@@ -264,7 +264,7 @@ while getopts ":hiv-:" o; do
         exit
         ;;
     v)
-        echo $VERSION
+        echo v$VERSION
         exit
         ;;
     *)
