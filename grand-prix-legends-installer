@@ -4,14 +4,14 @@
 # Works on: 
 #  - Ubuntu
 #  - Maybe Debian/Ubuntu derivatives
+#  - Partially on MACOS
 # Tested on: 
 #  - Ubuntu 20.4
 # Requires:
 #  - bash
 #  - wget
 #  - wine 
-#  - md5sum
-#  - shasum*
+#  - md5sum|shasum
 #  - udisksctl
 #  - file
 #  - grep
@@ -40,7 +40,7 @@ GEM="$GPL_SETUP_HOME/GEMPackage_2.5.0.32.exe"
 GEM_MD5="d82cd2428ce28081a4dca6f3e395e95a  $GEM" 
 GEM_SHASUM="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM"
 WINEPREFIX="$GPL_HOME/pfx"
-DRIVE_DEVICE="/dev/disk/by-label/GPL"
+ISO_DEVICE="/dev/disk/by-label/GPL"
 
 case $OSTYPE in
 linux*)
@@ -125,7 +125,7 @@ fi
 function getMountpoint()
 {
     r="\s+MountPoints:\s+(.*)"
-    info=$(udisksctl info -b "$DRIVE_DEVICE" |grep MountPoints)
+    info=$(udisksctl info -b "$ISO_DEVICE" |grep MountPoints)
     if [[ "$info"  =~ $r ]] && [ -d "${BASH_REMATCH[1]}" ]; then
         echo "${BASH_REMATCH[1]}" 
     fi    
@@ -133,7 +133,7 @@ function getMountpoint()
 #
 function getBackingFile()
 {   
-    local info=$(udisksctl info -b "$DRIVE_DEVICE" |grep BackingFile)
+    local info=$(udisksctl info -b "$ISO_DEVICE" |grep BackingFile)
     local r="\s+BackingFile:\s+(.*)"
     if [[ "$info"  =~ $r  ]]; then
         echo "${BASH_REMATCH[1]}"
@@ -144,7 +144,7 @@ function getBackingFile()
 #
 function unmountISO()
 {
-    udisksctl unmount -b $DRIVE_DEVICE
+    udisksctl unmount -b $ISO_DEVICE
 }
 #
 # TODO: return mountpoint
@@ -156,7 +156,7 @@ function mountISO()
 }
 # Mounting the iso 
 if [[ $OS == "linux" ]]; then 
-    if [ "$(file -b --mime-type "$DRIVE_DEVICE")" == "inode/symlink" ]; then 
+    if [ "$(file -b --mime-type "$ISO_DEVICE")" == "inode/symlink" ]; then 
         echo ISO already mounted?
     else
         echo Mounting ISO
@@ -179,11 +179,11 @@ elif [[ $OS == "osx" ]]; then
     fi
     echo "TODO: You may not find the CD on the Wine drive D: , sorry"
 else
-    echo "this shouldn't happen"
+    echo "this shouldn't happen" >&2
     exit 1
 fi
 
-echo All good: launching installer
+echo Launching installer
 
 # wait for installer to complete
 WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" && unmountISO || unmountISO
