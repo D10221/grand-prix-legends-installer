@@ -177,7 +177,7 @@ elif [[ $OS == "osx" ]]; then
         echo "TODO: Can't mount $(basename $ISO), it may be mounted already?" >&2
         exit 1
     fi
-    echo "TODO: You may not find the CD on the Wine drive D: , sorry"
+    echo "TODO: You may not find the CD as a wine drive, sorry"
 else
     echo "this shouldn't happen" >&2
     exit 1
@@ -186,7 +186,9 @@ fi
 echo Launching installer
 
 # wait for installer to complete
-WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" && unmountISO || unmountISO
+WINEPREFIX="$WINEPREFIX" wine "$INSTALLER"
+
+unmountISO
 
 # TODO: create create grand-prix-legends launch script
 # TODO: create grand-prix-legends.desktop
