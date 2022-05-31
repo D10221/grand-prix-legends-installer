@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# Grand Prix Legends installer 
-# Works on: 
+# Grand Prix Legends installer
+# Works on:
 #  - Ubuntu
 #  - Maybe Debian/Ubuntu derivatives
 #  - Partially on MACOS
-# Tested on: 
+# Tested on:
 #  - Ubuntu 20.4
 # Requires:
 #  - bash
 #  - wget
-#  - wine 
+#  - wine
 #  - md5sum|shasum
 #  - udisksctl
 #  - file
@@ -37,76 +37,42 @@ INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045  $INSTALLER"
 INSTALLER_SHASUM="5223d8e8c577ec4504fc8c9491b03c61710af263  $INSTALLER"
 GEM_URL="http://gem.grandprixlegends.info/GEM/GEMPackage_2.5.0.32.exe"
 GEM="$GPL_SETUP_HOME/GEMPackage_2.5.0.32.exe"
-GEM_MD5="d82cd2428ce28081a4dca6f3e395e95a  $GEM" 
+GEM_MD5="d82cd2428ce28081a4dca6f3e395e95a  $GEM"
 GEM_SHASUM="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM"
 WINEPREFIX="$GPL_HOME/pfx"
 ISO_DEVICE="/dev/disk/by-label/GPL"
-
-case $OSTYPE in
-linux*)
-    OS=linux
-    # lsb_release -i -s -> Ubuntu # ID
-    # lsb_release -r -s -> 20.04  # release
-    ;;
-darwin*)
-    OS=osx
-    ;;
-*)
-    echo "OS '$OSTYPE' not implemented.">&2
-    exit 1
-    ;;
-esac
-
-# check for wine
 WINE="$(which wine)"
-if [ ! -f "$WINE" ]; then
-    echo "can't find wine, get wine on the \$PATH and try again" >&2
-    exit 1
-fi
-
-# create targets
-mkdir -p "$GPL_SETUP_HOME"
-mkdir -p "$WINEPREFIX"
+_filename=$(basename $0)
 #
 # args:
 #   $1  'file'
 #   $2  'url'
 #
-dowload()
-{
+download() {
     if [ ! -f "$1" ]; then
-        return $(wget $2 -O "$1") 
+        return $(wget $2 -O "$1")
     fi
-    return 0;
+    return 0
 }
-#
-if ! dowload $ISO $ISO_URL \
-|| ! dowload $INSTALLER $INSTALLER_URL \
-|| ! dowload $GEM $GEM_URL; then
-    echo "Download failed" 
-    exit 1
-fi
-
 #
 # Args:
 #   $1  'file'
 #   $2  'md5sum'
 #   $3  'shasum'
 #
-verify()
-{
+verify() {
     local actual=""
     if [ ! -z "$(which shasum)" ]; then
         actual="$(shasum $1)"
         expected=$3
-    elif   [ ! -z "$(which md5sum)" ]; then
+    elif [ ! -z "$(which md5sum)" ]; then
         actual="$(md5sum $1)"
         expected=$2
     else
         echo "Can't verify $1" >&2
-        return 1    
+        return 1
     fi
-    if [ "$actual" != "$expected" ];then
+    if [ "$actual" != "$expected" ]; then
         # echo "Expected $expected"
         # echo "Actual   $actual"
         echo "Bad hash: $(basename $1)" >&2
@@ -114,82 +80,200 @@ verify()
     fi
     return 0
 }
-# verify
-if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" \
-|| ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" \
-|| ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
-    echo verify failed
-    exit 1
-fi
-#
-getMountpoint()
-{
-    r="\s+MountPoints:\s+(.*)"
-    info=$(udisksctl info -b "$ISO_DEVICE" |grep MountPoints)
-    if [[ "$info"  =~ $r ]] && [ -d "${BASH_REMATCH[1]}" ]; then
-        echo "${BASH_REMATCH[1]}" 
-    fi    
+# create targets
+createTargets() {
+    mkdir -p "$GPL_SETUP_HOME"
+    mkdir -p "$WINEPREFIX"
 }
 #
-getBackingFile()
-{   
-    local info=$(udisksctl info -b "$ISO_DEVICE" |grep BackingFile)
+# Args:
+#   $1 $ISO_DEVICE
+#
+udisksctlInfoBackingFile() {
+    local BACKINGFILE=""
+    local UDISKSCTL_INFO=$(udisksctl info -b "$1" | grep BackingFile)
     local r="\s+BackingFile:\s+(.*)"
-    if [[ "$info"  =~ $r  ]]; then
+    if [[ "$UDISKSCTL_INFO" =~ $r ]]; then
         echo "${BASH_REMATCH[1]}"
-    fi
-}
-# 
-# Unmount drive/iso
-#
-unmountISO()
-{
-    udisksctl unmount -b $ISO_DEVICE
-}
-#
-# TODO: return mountpoint
-#
-mountISO()
-{
-    udisksctl loop-setup -f  $ISO 
-    # Mapped file ~/.local/share/grand-prix-legends/setup/grand-prix-legends.iso as /dev/loop18.
-}
-# Mounting the iso 
-if [[ $OS == "linux" ]]; then 
-    if [ "$(file -b --mime-type "$ISO_DEVICE")" == "inode/symlink" ]; then 
-        echo ISO already mounted?
     else
-        echo Mounting ISO
-        mountISO
+        return 1
     fi
-    BACKINGFILE=$(getBackingFile) 
-    if ! [ -f "$BACKINGFILE" ] || [ $BACKINGFILE != $ISO ]; then
-        echo "wrong ISO mounted '$BACKINGFILE' ?" >&2
+}
+#
+# install on linux
+#
+linuxInstall() {
+    # create dirs to store downloaded files and prefix
+    createTargets
+    #
+    if ! download $ISO $ISO_URL ||
+        ! download $INSTALLER $INSTALLER_URL ||
+        ! download $GEM $GEM_URL; then
+        echo "Download failed"
         exit 1
     fi
-    MOUNT_POINT=$(getMountpoint) # unneeded
-    if ! [ -d "$MOUNT_POINT" ]; then
-        echo "wrong MountPoint '$MOUNT_POINT' is not Directory?" >&2
+    # verify
+    if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" ||
+        ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" ||
+        ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
+        echo verify failed
         exit 1
     fi
-elif [[ $OS == "osx" ]]; then
-    if ! hdiutil mount $ISO; then
-        echo "TODO: Can't mount $(basename $ISO), it may be mounted already?" >&2
+    # if there isn't wine ?
+    if [ ! -f "$WINE" ]; then
+        echo "can't find wine, get wine on the \$PATH and try again" >&2
         exit 1
+    fi
+    # Mounting the iso
+    # get the device backing file
+    local BACKINGFILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
+    # already mounted?
+    if [ -f "$BACKINGFILE" ] && [ $BACKINGFILE == $ISO ]; then  # is mounted
+        echo "Already mounted $ISO?"
+    elif udisksctl loop-setup -f $ISO; then # mount it
+        # mounted: update the backing file
+        BACKINGFILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
+    fi
+    # 
+    if ! [ -f "$BACKINGFILE" ]; then
+        echo "Can't mount '$ISO' file on '$ISO_DEVICE' device!" >&2
+        exit 1
+    fi
+    #
+    if [ $BACKINGFILE != $ISO ];then
+        echo "Wrong '$ISO' file on '$ISO_DEVICE' device?" >&2
+        exit 1
+    fi
+    # run
+    WINEPREFIX="$WINEPREFIX" wine "$INSTALLER"
+    # unmount iso
+    if [ -f "$BACKINGFILE" ] && [ $BACKINGFILE == $ISO ] && # is mounted
+        !udisksctl unmount -b $ISO_DEVICE; then
+        return 1 # failed
+    fi
+}
+#
+#
+#
+darwinInstall() {
+    # create dirs to store downloaded files and prefix
+    createTargets
+    #
+    if ! download $ISO $ISO_URL ||
+        ! download $INSTALLER $INSTALLER_URL ||
+        ! download $GEM $GEM_URL; then
+        echo "Download failed"
+        exit 1
+    fi
+    # verify downloaded files
+    if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" ||
+        ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" ||
+        ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
+        echo verify failed
+        exit 1
+    fi
+    # if there isn't wine ?
+    if [ ! -f "$WINE" ]; then
+        echo "can't find wine, get wine on the \$PATH and try again" >&2
+        exit 1
+    fi
+    # Mounting the iso
+    mounted=1
+    if hdiutil mount $ISO; then
+        mounted=0
+    fi
+    if ! $mounted; then
+        echo "TODO: Can't mount $(basename $ISO), is it mounted already?" >&2
     fi
     echo "TODO: You may not find the CD as a wine drive, sorry"
-else
-    echo "this shouldn't happen" >&2
-    exit 1
-fi
-
-echo Launching installer
-
-# wait for installer to complete
-WINEPREFIX="$WINEPREFIX" wine "$INSTALLER"
-
-unmountISO
-
+    # run
+    WINEPREFIX="$WINEPREFIX" wine "$INSTALLER"
+    # unmount iso
+    if $mounted; then
+        echo "TODO: Can't unmount $(basename $ISO)" >&2
+        exit 1
+    fi
+}
+#
+# Main
 # TODO: create create grand-prix-legends launch script
 # TODO: create grand-prix-legends.desktop
-# Display installation details 
+# Display installation details
+main() {
+    case $OSTYPE in
+    linux*)
+        if ! linuxInstall; then
+            echo "Installation did not complete successfully" >&2
+            exit 1
+        fi
+        ;;
+    darwin*)
+        if ! darwinInstall; then
+            echo "Installation did not complete successfully" >&2
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Installation for OS '$OSTYPE' is not implemented." >&2
+        exit 1
+        ;;
+    esac
+}
+#
+# usage
+#
+usage() {
+    echo "usage: '$_filename [options]'"
+    echo "options:"
+    echo "-i --install 'install gpl'"
+    echo "-h --help    'show this'"
+    echo "-v --version 'show '$_filename' version'"
+}
+#
+if [[ $# -lt 1 ]]; then
+    usage
+    exit 1
+fi
+while getopts ":hiv-:" o; do
+    case "${o}" in
+    -)
+        case "${OPTARG}" in
+        install)
+            echo "usage: ???"
+            ;;
+        help)
+            usage
+            exit
+            ;;
+        version)
+            echo $VERSION
+            exit 1
+            ;;
+        *)
+            echo "Unknown option --${OPTARG}" >&2
+            exit 1
+            ;;
+        esac
+        ;;
+    i)
+        main
+        exit
+        ;;
+    h)
+        usage
+        exit
+        ;;
+    v)
+        echo $VERSION
+        exit
+        ;;
+    *)
+        if [ "$OPTERR" != 1 ] || [ "${OPTSPEC:0:1}" = ":" ]; then
+            echo "Non-option argument: '-${OPTARG}'" >&2
+        fi
+        echo "Unknown option -${OPTARG}" >&2
+        exit 1
+        ;;
+    esac
+done
+echo "Unkown args '"$@"'"
