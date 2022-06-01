@@ -31,8 +31,9 @@ ISO_URL="https://archive.org/download/grand-prix-legends/GrandPrixLegends.iso"
 ISO=$CACHE/grand-prix-legends.iso
 ISO_MD5="c42ff47a96633e28a6d03afa078b1da2  $ISO"
 ISO_SHASUM="082542e01a9e63c914a8f34f77ee306531a2aa13  $ISO"
+ISO_NAME="$(basename $ISO)"
 # Global mounting point, to use by 'mount' , NOT by 'udisksctl'
-ISO_MOUNTING_POINT="/mnt/$(basename $ISO)"
+ISO_MOUNTING_POINT="/mnt/$ISO_NAME"
 INSTALLER_URL="http://gem.grandprixlegends.info/gplinstall_beta_1.08.exe"
 INSTALLER="$CACHE/gplinstall_beta_1.08.exe"
 INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045  $INSTALLER"
@@ -147,25 +148,54 @@ udisksctlUnmount() {
 # mount ISO , needs root
 #
 rootMount() {
-    local bname=$(basename $ISO)
-    if mkdir -p $ISO_MOUNTING_POINT; then
+    # if not mounted
+    if [ -z "$(mount | grep $ISO_NAME)"]; then
+        SUDO=''
+        if (($EUID != 0)); then
+            SUDO='sudo'
+        fi
+        if ! [ -z $SUDO ]; then
+            echo "$_filename: need root access"
+        fi        
+        if ! $SUDO mkdir -p $ISO_MOUNTING_POINT; then
+            return 1
+        fi
         if [[ $WSL -eq 1 ]]; then
-            # TODO: find drive letter
-            if mkdir -p $ISO_MOUNTING_POINT && mount -t drvfs D: "/mnt/$bname"; then
-                return 0 # mounted
+            # WSL
+            read -p 'Please enter Drive letter [az-AZ]: ' DRIVE
+            if ! [[ "$DRIVE" =~ ^[a-zA-Z]$ ]]; then
+                echo "'$DRIVE' is not a valid drive letter" >&2
+                return 1
+            fi
+            if ! $SUDO mount -t drvfs "$DRIVE:" "$ISO_MOUNTING_POINT" ; then
+                return 1
             fi
         else
             #linux
-            if mount -o ro,loop "$ISO" "/mnt/$bname"; then
-                return 0 # mounted
+            if ! $SUDO mount -o ro,loop "$ISO" "$ISO_MOUNTING_POINT"; then
+                return 1 # mounted
             fi
         fi
+    else
+        echo "$_filename: '$ISO_NAME' seems to be mounted already"
     fi
-    return 1
 }
+#
+# unmount ISO_MOUNTING_POINT , needs root
+#
 rootUnmount() {
-    echo "TODO: rootUnmount is not implemented" >&2
-    return 1
+    SUDO=''
+    if (($EUID != 0)); then
+        SUDO='sudo'
+    fi
+    # if mounted
+    if ! [ -z "$(mount | grep $ISO_NAME)"]; then
+        if ! $SUDO unmount $ISO_MOUNTING_POINT; then
+            return 1 # fail
+        fi
+    else
+        echo "$_filename: $ISO_NAME is not mounted"
+    fi
 }
 #
 # ???
@@ -227,20 +257,14 @@ linuxInstall() {
     fi
     # Alt mount
     if [[ $mounted -eq 0 ]]; then
-        echo "$_filename: Unable to mount '$(basename $ISO)'"
-        read -p "Try mounting as super user? (y/n)" a
-        case $a in
-        y)
-            if rootMount; then
-                mounted=1
-            fi
-            ;;
-        esac
+        if rootMount; then
+            mounted=1
+        fi
     fi
     #
     local ready=0
     if [[ $mounted -eq 0 ]]; then
-        echo "$_filename: Unable to mount '$(basename $ISO)'"
+        echo "$_filename: Unable to mount '$ISO_NAME'"
         echo "You will need to mount '$ISO'"
         echo "Or load the Disc your self"
         read -p "$_filename: Run the installer anyway? (y/n)" a
@@ -256,7 +280,7 @@ linuxInstall() {
     if [[ mounted -eq 1 ]]; then
         if ! udisksctlUnmount; then
             if ! rootUnmount; then
-                echo "$_filename: Didn't unmount '$(basename $ISO)'"
+                echo "$_filename: Didn't unmount '$ISO_NAME'"
             fi
         fi
     fi
@@ -292,14 +316,14 @@ darwinInstall() {
         mounted=0
     fi
     if ! $mounted; then
-        echo "$_filename: TODO: Can't mount $(basename $ISO), is it mounted already?" >&2
+        echo "$_filename: TODO: Can't mount $ISO_NAME, is it mounted already?" >&2
     fi
     echo "$_filename: TODO: You may not find the CD as a wine drive, sorry"
     # run
     wineInstall
     # unmount iso
     if $mounted; then
-        echo "$_filename: TODO: Can't unmount $(basename $ISO)" >&2
+        echo "$_filename: TODO: Can't unmount $ISO_NAME" >&2
         return 1
     fi
 }
