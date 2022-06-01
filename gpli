@@ -31,6 +31,8 @@ ISO_URL="https://archive.org/download/grand-prix-legends/GrandPrixLegends.iso"
 ISO=$CACHE/grand-prix-legends.iso
 ISO_MD5="c42ff47a96633e28a6d03afa078b1da2  $ISO"
 ISO_SHASUM="082542e01a9e63c914a8f34f77ee306531a2aa13  $ISO"
+# Global mounting point, to use by 'mount' , NOT by 'udisksctl'
+ISO_MOUNTING_POINT="/mnt/$(basename $ISO)"
 INSTALLER_URL="http://gem.grandprixlegends.info/gplinstall_beta_1.08.exe"
 INSTALLER="$CACHE/gplinstall_beta_1.08.exe"
 INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045  $INSTALLER"
@@ -46,6 +48,11 @@ _filename=$(basename $0)
 # use find?
 GPL_EXE="$WINEPREFIX/drive_c/Sierra/GPL/gpl.exe"
 GEM_EXE="$WINEPREFIX/drive_c/GPLSecrets/GEM+/GEMP2.exe"
+# windows subs for linux
+WSL=0
+if [ ! -z "$WSL_DISTRO_NAME" ] || [[ $(uname -r) =~ "-microsoft-" ]]; then
+    WSL=1
+fi
 #
 # args:
 #   $1  'file'
@@ -136,8 +143,24 @@ udisksctlUnmount() {
         return 1 # failed
     fi
 }
+#
+# mount ISO , needs root
+#
 rootMount() {
-    echo "TODO: rootMount is not implemented" >&2
+    local bname=$(basename $ISO)
+    if mkdir -p $ISO_MOUNTING_POINT; then
+        if [[ $WSL -eq 1 ]]; then
+            # TODO: find drive letter
+            if mkdir -p $ISO_MOUNTING_POINT && mount -t drvfs D: "/mnt/$bname"; then
+                return 0 # mounted
+            fi
+        else
+            #linux
+            if mount -o ro,loop "$ISO" "/mnt/$bname"; then
+                return 0 # mounted
+            fi
+        fi
+    fi
     return 1
 }
 rootUnmount() {
