@@ -25,24 +25,27 @@
 # this script version
 VERSION=0.0.1
 
-GPL_HOME=~/.local/share/grand-prix-legends
-GPL_SETUP_HOME="$GPL_HOME/setup"
+GPL_HOME=$HOME/.local/share/grand-prix-legends
+CACHE="$HOME/.cache/grand-prix-legends"
 ISO_URL="https://archive.org/download/grand-prix-legends/GrandPrixLegends.iso"
-ISO=$GPL_SETUP_HOME/grand-prix-legends.iso
+ISO=$CACHE/grand-prix-legends.iso
 ISO_MD5="c42ff47a96633e28a6d03afa078b1da2  $ISO"
 ISO_SHASUM="082542e01a9e63c914a8f34f77ee306531a2aa13  $ISO"
 INSTALLER_URL="http://gem.grandprixlegends.info/gplinstall_beta_1.08.exe"
-INSTALLER="$GPL_SETUP_HOME/gplinstall_beta_1.08.exe"
+INSTALLER="$CACHE/gplinstall_beta_1.08.exe"
 INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045  $INSTALLER"
 INSTALLER_SHASUM="5223d8e8c577ec4504fc8c9491b03c61710af263  $INSTALLER"
 GEM_URL="http://gem.grandprixlegends.info/GEM/GEMPackage_2.5.0.32.exe"
-GEM="$GPL_SETUP_HOME/GEMPackage_2.5.0.32.exe"
+GEM="$CACHE/GEMPackage_2.5.0.32.exe"
 GEM_MD5="d82cd2428ce28081a4dca6f3e395e95a  $GEM"
 GEM_SHASUM="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM"
 WINEPREFIX="$GPL_HOME/pfx"
 ISO_DEVICE="/dev/disk/by-label/GPL"
 WINE="$(which wine)"
 _filename=$(basename $0)
+# use find? 
+GPL_EXE="$WINEPREFIX/drive_c/Sierra/GPL/gpl.exe"
+GEM_EXE="$WINEPREFIX/drive_c/GPLSecrets/GEM+/GEMP2.exe"
 #
 # args:
 #   $1  'file'
@@ -82,7 +85,7 @@ verify() {
 }
 # create targets
 createTargets() {
-    mkdir -p "$GPL_SETUP_HOME"
+    mkdir -p "$CACHE"
     mkdir -p "$WINEPREFIX"
 }
 #
@@ -96,6 +99,34 @@ udisksctlInfoBackingFile() {
     if [[ "$UDISKSCTL_INFO" =~ $r ]]; then
         echo "${BASH_REMATCH[1]}"
     else
+        return 1
+    fi
+}
+#
+# ???
+#
+installer() {
+    local GPL_INSTALLED=0
+    if [ -f $GPL_EXE ]; then
+        GPL_INSTALLED=1
+    fi
+    if [[ $GPL_INSTALLED -eq 0 ]] && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER"; then
+        echo "$GPL_EXE installed"
+        GPL_INSTALLED=1
+    fi
+    GEM_INSTALLED=0
+    if [ -f $GEM_EXE ]; then
+        echo "$GEM installed"
+        GEM_INSTALLED=1
+    fi
+    if [[ "$GEM_INSTALLED" -eq 0 ]] && [[ "$GPL_INSTALLED" -eq 0 ]]; then
+            if WINEPREFIX="$WINEPREFIX" wine "$GEM"; then
+                GEM_INSTALLED=1
+            fi
+    fi    
+    if [[ $GPL_INSTALLED -eq 1 ]] || [[ $GEM_INSTALLED -eq 1 ]]; then
+        return 0
+    else 
         return 1
     fi
 }
@@ -144,16 +175,11 @@ linuxInstall() {
         echo "Wrong '$ISO' on '$ISO_DEVICE' device?" >&2
         exit 1
     fi
-    # unattended
-    silent=""
-    if $SILENT; then
-        silent="\\SILENT"
-    fi
-    WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" "$silent" &&
-        WINEPREFIX="$WINEPREFIX" wine "$GEM" "$silent"
-    # unmount iso
+    #
+    installer
+    # unmount iso, TODO; if it wasn't mounted
     if [ -f "$BACKINGFILE" ] && [ $BACKINGFILE == $ISO ] && # is mounted
-        !udisksctl unmount -b $ISO_DEVICE; then
+        ! udisksctl unmount -b $ISO_DEVICE; then
         return 1 # failed
     fi
 }
@@ -192,7 +218,7 @@ darwinInstall() {
     fi
     echo "TODO: You may not find the CD as a wine drive, sorry"
     # run
-    WINEPREFIX="$WINEPREFIX" wine "$INSTALLER"
+    installer
     # unmount iso
     if $mounted; then
         echo "TODO: Can't unmount $(basename $ISO)" >&2
@@ -202,7 +228,6 @@ darwinInstall() {
 #
 # Main
 # TODO: create create grand-prix-legends launch script
-# TODO: create grand-prix-legends.desktop
 # Display installation details
 main() {
     case $OSTYPE in
@@ -227,8 +252,8 @@ main() {
 #
 # Uninstall GPL and remove prefix
 #
-uninstall() {    
-    if $YES then
+uninstall() {
+    if $YES; then
         if rm -rf $GPL_HOME; then
             return 0
         else
@@ -257,21 +282,20 @@ uninstall() {
 # usage
 #
 usage() {
+    echo "Grand Prix Legends Wine Installer v$VERSION"
     echo "usage: '$_filename [options]'"
     echo "options:"
-    echo "-i --install   'Install GPL'"
-    echo "-h --help      'Show this'"
-    echo "-v --version   'Show '$_filename' version'"
-    echo "-s --silent    'Try to perform an unattended installation'"
-    echo "-u --uninstall 'Uninstall GPL and remove prefix'"
-    echo "-y 'answer everything 'Yes'"
+    echo "  -i --install   'Install GPL and GEM+'"
+    echo "  -h --help      'Show this'"
+    echo "  -v --version   'Show '$_filename' version'"
+    echo "  -u --uninstall 'Uninstall GPL and remove prefix'"
 }
 #
 if [[ $# -lt 1 ]]; then
     usage
     exit 1
 fi
-SILENT=1
+SILENT=0
 YES=1
 while getopts ":ihvsuy-:" o; do
     case "${o}" in
@@ -287,13 +311,6 @@ while getopts ":ihvsuy-:" o; do
         version)
             echo v$VERSION
             exit 1
-            ;;
-        silent)
-            SILENT=0
-            ;;
-        yes)
-            SILENT=0
-            YES=0
             ;;
         uninstall)
             if ! uninstall; then
@@ -319,13 +336,6 @@ while getopts ":ihvsuy-:" o; do
     v)
         echo v$VERSION
         exit
-        ;;
-    s)
-        SILENT=0
-        ;;
-    y)
-        SILENT=0
-        YES=0
         ;;
     u)
         if ! uninstall; then
