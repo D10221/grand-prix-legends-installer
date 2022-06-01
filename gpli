@@ -155,9 +155,9 @@ rootMount() {
             SUDO='sudo'
         fi
         if ! [ -z $SUDO ]; then
-            echo "$_filename: need root access"
-        fi        
-        if ! $SUDO mkdir -p $ISO_MOUNTING_POINT; then
+            echo "$_filename: need root access to mount '$ISO_NAME'" >&2
+        fi
+        if ! $SUDO mkdir -p "$ISO_MOUNTING_POINT"; then
             return 1
         fi
         if [[ $WSL -eq 1 ]]; then
@@ -167,7 +167,7 @@ rootMount() {
                 echo "'$DRIVE' is not a valid drive letter" >&2
                 return 1
             fi
-            if ! $SUDO mount -t drvfs "$DRIVE:" "$ISO_MOUNTING_POINT" ; then
+            if ! $SUDO mount -t drvfs "$DRIVE:" "$ISO_MOUNTING_POINT"; then
                 return 1
             fi
         else
@@ -177,7 +177,8 @@ rootMount() {
             fi
         fi
     else
-        echo "$_filename: '$ISO_NAME' seems to be mounted already"
+        echo "$_filename: '$ISO_NAME' seems to be mounted already" >&2
+        return 2
     fi
 }
 #
@@ -255,14 +256,29 @@ linuxInstall() {
     if udisksctlMount; then
         mounted=1
     fi
-    # Alt mount
+    # Couldn't mount in user space, try with 'mount'
     if [[ $mounted -eq 0 ]]; then
-        if rootMount; then
+        rootMount
+        x=$?
+        case $x in
+        1)
+            # error
+            mounted=0
+            echo "Not Mounted: x=$x"
+            ;;
+        2)
+            # error: already mounted
+            mounted=2
+            echo "Already Mounted: x=$x"
+            ;;
+        *)
+            # success
             mounted=1
-        fi
+            echo "Mounted: x=$x"
+            ;;
+        esac
     fi
     #
-    local ready=0
     if [[ $mounted -eq 0 ]]; then
         echo "$_filename: Unable to mount '$ISO_NAME'"
         echo "You will need to mount '$ISO'"
@@ -272,12 +288,15 @@ linuxInstall() {
         y) ready=1 ;;
         esac
     fi
-    # Run the installers
-    if [[ $ready -eq 1 ]]; then
+    # Run the installers: if mounted=1 or mounted=2 'already mounted'
+    if [[ $mounted -gt 0 ]]; then
         wineInstall
+    else
+        echo "$_filename: Not ready"
     fi
-    # unmount iso
+    # unmount iso is mounted=1 not mounted=2 'already mounted'
     if [[ mounted -eq 1 ]]; then
+        echo "$_filename: unmounting"
         if ! udisksctlUnmount; then
             if ! rootUnmount; then
                 echo "$_filename: Didn't unmount '$ISO_NAME'"
