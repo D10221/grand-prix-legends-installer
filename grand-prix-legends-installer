@@ -136,10 +136,18 @@ udisksctlUnmount() {
         return 1 # failed
     fi
 }
+rootMount() {
+    echo "TODO: rootMount is not implemented" >&2
+    return 1
+}
+rootUnmount() {
+    echo "TODO: rootUnmount is not implemented" >&2
+    return 1
+}
 #
 # ???
 #
-install() {
+wineInstall() {
     local GPL_INSTALLED=0
     if [ -f $GPL_EXE ]; then
         GPL_INSTALLED=1
@@ -174,31 +182,60 @@ linuxInstall() {
     if ! download $ISO $ISO_URL ||
         ! download $INSTALLER $INSTALLER_URL ||
         ! download $GEM $GEM_URL; then
-        echo "$_filename: Download failed"
-        exit 1
+        echo "$_filename: Download failed" >&2
+        return 1
     fi
     # verify
     if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" ||
         ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" ||
         ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
         echo "$_filename: verify failed"
-        exit 1
+        return 1
     fi
     # if there isn't wine ?
     if [ ! -f "$WINE" ]; then
         echo "$_filename: can't find wine, get wine on the \$PATH and try again" >&2
-        exit 1
+        return 1
     fi
     # Mounting the iso
-    local mounted = 0
-    if [ udisksctlMount ]; then
-        mounted = 1
+    local mounted=0
+    if udisksctlMount; then
+        mounted=1
+    fi
+    # Alt mount
+    if [[ $mounted -eq 0 ]]; then
+        echo "$_filename: Unable to mount '$(basename $ISO)'"
+        read -p "Try mounting as super user? (y/n)" a
+        case $a in
+        y)
+            if rootMount; then
+                mounted=1
+            fi
+            ;;
+        esac
+    fi
+    #
+    local ready=0
+    if [[ $mounted -eq 0 ]]; then
+        echo "$_filename: Unable to mount '$(basename $ISO)'"
+        echo "You will need to mount '$ISO'"
+        echo "Or load the Disc your self"
+        read -p "$_filename: Run the installer anyway? (y/n)" a
+        case $a in
+        y) ready=1 ;;
+        esac
     fi
     # Run the installers
-    install
+    if [[ $ready -eq 1 ]]; then
+        wineInstall
+    fi
     # unmount iso
     if [[ mounted -eq 1 ]]; then
-        udisksctlUnmount
+        if ! udisksctlUnmount; then
+            if ! rootUnmount; then
+                echo "$_filename: Didn't unmount '$(basename $ISO)'"
+            fi
+        fi
     fi
 }
 #
@@ -211,20 +248,20 @@ darwinInstall() {
     if ! download $ISO $ISO_URL ||
         ! download $INSTALLER $INSTALLER_URL ||
         ! download $GEM $GEM_URL; then
-        echo "$_filename: Download failed"
-        exit 1
+        echo "$_filename: Download failed" >&2
+        return 1
     fi
     # verify downloaded files
     if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" ||
         ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" ||
         ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
         echo verify failed
-        exit 1
+        return 1
     fi
     # if there isn't wine ?
     if [ ! -f "$WINE" ]; then
         echo "$_filename: can't find wine, get wine on the \$PATH and try again" >&2
-        exit 1
+        return 1
     fi
     # Mounting the iso
     mounted=1
@@ -236,33 +273,33 @@ darwinInstall() {
     fi
     echo "$_filename: TODO: You may not find the CD as a wine drive, sorry"
     # run
-    install
+    wineInstall
     # unmount iso
     if $mounted; then
-        echo "TODO: Can't unmount $(basename $ISO)" >&2
-        exit 1
+        echo "$_filename: TODO: Can't unmount $(basename $ISO)" >&2
+        return 1
     fi
 }
 #
 # ???
 #
-runInstaller() {
+mainInstall() {
     case $OSTYPE in
     linux*)
         if ! linuxInstall; then
             echo "$_filename: Installation did not complete successfully" >&2
-            exit 1
+            return 1
         fi
         ;;
     darwin*)
         if ! darwinInstall; then
             echo "$_filename: Installation did not complete successfully" >&2
-            exit 1
+            return 1
         fi
         ;;
     *)
         echo "$_filename: Installation for OS '$OSTYPE' is not implemented." >&2
-        exit 1
+        return 1
         ;;
     esac
 }
@@ -367,7 +404,11 @@ while getopts ":hvu-:" o; do
 done
 case $1 in
 install)
-    install
+    if mainInstall; then
+        echo "$_filename: done"
+    else
+        echo "$_filename: completed with error"
+    fi
     ;;
 uninstall)
     uninstall
