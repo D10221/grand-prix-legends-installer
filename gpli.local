@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #
 # Run installer with specific wine version
-# Debug
 #
-WINE_BIN="wine/winehq-stable_6.0.2~focal-1_amd64/usr/bin"
-PATH="$PATH:$HOME/$WINE_BIN" bash -x ./grand-prix-legends-installer "$@"
+WINE_BIN=~/wine/winehq-stable_6.0.2~focal-1_amd64/usr/bin
+PATH="$PATH:$WINE_BIN" ./gpli "$@"

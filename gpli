@@ -38,10 +38,12 @@ INSTALLER_URL="http://gem.grandprixlegends.info/gplinstall_beta_1.08.exe"
 INSTALLER="$CACHE/gplinstall_beta_1.08.exe"
 INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045  $INSTALLER"
 INSTALLER_SHASUM="5223d8e8c577ec4504fc8c9491b03c61710af263  $INSTALLER"
+INSTALLER_LOG="$HOME/$(basename $INSTALLER).log"
 GEM_URL="http://gem.grandprixlegends.info/GEM/GEMPackage_2.5.0.32.exe"
 GEM="$CACHE/GEMPackage_2.5.0.32.exe"
 GEM_MD5="d82cd2428ce28081a4dca6f3e395e95a  $GEM"
 GEM_SHASUM="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM"
+GEM_LOG="$HOME/$(basename $GEM).log"
 WINEPREFIX="$GPL_HOME/pfx"
 ISO_DEVICE="/dev/disk/by-label/GPL"
 WINE="$(which wine)"
@@ -54,6 +56,19 @@ WSL=0
 if [ ! -z "$WSL_DISTRO_NAME" ] || [[ $(uname -r) =~ "-microsoft-" ]]; then
     WSL=1
 fi
+#
+# error: echo to stderr
+#
+error() {
+    echo -e "\e[31m$_filename: $@\e[0m"
+}
+#
+# Debug: echo to sdtout
+#
+debug() {
+    echo -e "\e[33m$_filename/${FUNCNAME[1]}: $@\e[0m"
+}
+#
 #
 # args:
 #   $1  'file'
@@ -80,13 +95,13 @@ verify() {
         actual="$(md5sum $1)"
         expected=$2
     else
-        echo "$_filename: Can't verify $1" >&2
+        error "Can't verify $1"
         return 1
     fi
     if [ "$actual" != "$expected" ]; then
-        # echo "Expected $expected"
-        # echo "Actual   $actual"
-        echo "$_filename: Bad hash: $(basename $1)" >&2
+        # debug "Expected $expected"
+        # debug "Actual   $actual"
+        error "Bad hash: $(basename $1)"
         return 1
     fi
     return 0
@@ -115,33 +130,41 @@ udisksctlInfoBackingFile() {
 #
 udisksctlMount() {
     # get the device backing file
-    local BACKINGFILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
+    BACKINGFILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
     # already mounted?
     if [ -f "$BACKINGFILE" ] && [ $BACKINGFILE == $ISO ]; then # is mounted
-        echo "$_filename: Already mounted $ISO?" >&2
-        return 1                            # return 'Not mounted'
+        debug "$ISO_NAME Already mounted"
+        return 2
     elif udisksctl loop-setup -f $ISO; then # mount it
         # mounted: update the backing file
         BACKINGFILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
     fi
     #
     if ! [ -f "$BACKINGFILE" ]; then
-        echo "$_filename: Can't mount '$ISO' on '$ISO_DEVICE' device!" >&2
-        return 1
+        error "failed to mount '$ISO' on '$ISO_DEVICE' device!"
+        return 1 # not mounted
     fi
     #
     if [ $BACKINGFILE != $ISO ]; then
-        echo "$_filename: Wrong '$ISO' on '$ISO_DEVICE' device?" >&2
-        return 1
+        error "Wrong '$ISO' on '$ISO_DEVICE' device?"
+        return 1 # not mounted
     fi
 }
 #
-# ???
+# unmount $ISO if not mounted
+#
+# returns:
+#   2: not mounted
+#   1: failed to unmount
 #
 udisksctlUnmount() {
-    if [ -f "$BACKINGFILE" ] && [ $BACKINGFILE == $ISO ] && # is mounted
-        ! udisksctl unmount -b $ISO_DEVICE; then
-        return 1 # failed
+    # if BACKINGFILE is set, is mounted by udisksctl
+    if [ ! -f "$BACKINGFILE" ] || [ $BACKINGFILE != $ISO ]; then
+        debug BACKINGFILE=$BACKINGFILE
+        return 2 # not mounted by udisksctl
+    fi
+    if ! udisksctl unmount -b $ISO_DEVICE; then
+        return 1 # failed to unmount
     fi
 }
 #
@@ -155,7 +178,7 @@ rootMount() {
             SUDO='sudo'
         fi
         if ! [ -z $SUDO ]; then
-            echo "$_filename: need root access to mount '$ISO_NAME'" >&2
+            debug "need root access to mount '$ISO_NAME'"
         fi
         if ! $SUDO mkdir -p "$ISO_MOUNTING_POINT"; then
             return 1
@@ -164,7 +187,7 @@ rootMount() {
             # WSL
             read -p 'Please enter Drive letter [az-AZ]: ' DRIVE
             if ! [[ "$DRIVE" =~ ^[a-zA-Z]$ ]]; then
-                echo "'$DRIVE' is not a valid drive letter" >&2
+                error "'$DRIVE' is not a valid drive letter"
                 return 1
             fi
             if ! $SUDO mount -t drvfs "$DRIVE:" "$ISO_MOUNTING_POINT"; then
@@ -177,7 +200,7 @@ rootMount() {
             fi
         fi
     else
-        echo "$_filename: '$ISO_NAME' seems to be mounted already" >&2
+        error "'$ISO_NAME' seems to be mounted already"
         return 2
     fi
 }
@@ -189,41 +212,13 @@ rootUnmount() {
     if (($EUID != 0)); then
         SUDO='sudo'
     fi
-    # if mounted
-    if ! [ -z "$(mount | grep $ISO_NAME)"]; then
+    if ! [ -z "$(mount | grep $ISO_NAME)"]; then # if mounted
         if ! $SUDO unmount $ISO_MOUNTING_POINT; then
+            error "$SUDO unmount $ISO_MOUNTING_POINT failed"
             return 1 # fail
         fi
     else
-        echo "$_filename: $ISO_NAME is not mounted"
-    fi
-}
-#
-# ???
-#
-wineInstall() {
-    local GPL_INSTALLED=0
-    if [ -f $GPL_EXE ]; then
-        GPL_INSTALLED=1
-    fi
-    if [[ $GPL_INSTALLED -eq 0 ]] && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER"; then
-        echo "$GPL_EXE installed"
-        GPL_INSTALLED=1
-    fi
-    GEM_INSTALLED=0
-    if [ -f $GEM_EXE ]; then
-        echo "$GEM installed"
-        GEM_INSTALLED=1
-    fi
-    if [[ "$GEM_INSTALLED" -eq 0 ]] && [[ "$GPL_INSTALLED" -eq 0 ]]; then
-        if WINEPREFIX="$WINEPREFIX" wine "$GEM"; then
-            GEM_INSTALLED=1
-        fi
-    fi
-    if [[ $GPL_INSTALLED -eq 1 ]] || [[ $GEM_INSTALLED -eq 1 ]]; then
-        return 0
-    else
-        return 1
+        return 2 #not mounted by $SUDO mount
     fi
 }
 #
@@ -236,26 +231,42 @@ linuxInstall() {
     if ! download $ISO $ISO_URL ||
         ! download $INSTALLER $INSTALLER_URL ||
         ! download $GEM $GEM_URL; then
-        echo "$_filename: Download failed" >&2
+        error "Download failed"
         return 1
     fi
     # verify
     if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" ||
         ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" ||
         ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
-        echo "$_filename: verify failed"
+        debug "verify failed"
         return 1
     fi
     # if there isn't wine ?
     if [ ! -f "$WINE" ]; then
-        echo "$_filename: can't find wine, get wine on the \$PATH and try again" >&2
+        error "can't find wine, get wine on the \$PATH and try again"
         return 1
     fi
     # Mounting the iso
     local mounted=0
-    if udisksctlMount; then
+    udisksctlMount
+    x=$?
+    case $x in
+    1)
+        # error
+        mounted=0
+        debug "$ISO_NAME Not Mounted by udisksctl"
+        ;;
+    2)
+        # error: already mounted
+        mounted=2
+        debug "$ISO_NAME Already Mounted by udisksctl"
+        ;;
+    *)
+        # success
         mounted=1
-    fi
+        debug "$ISO_NAME Mounted by udisksctl"
+        ;;
+    esac
     # Couldn't mount in user space, try with 'mount'
     if [[ $mounted -eq 0 ]]; then
         rootMount
@@ -264,44 +275,81 @@ linuxInstall() {
         1)
             # error
             mounted=0
-            echo "Not Mounted: x=$x"
+            debug "$ISO_NAME Not Mounted by 'mount'"
             ;;
         2)
             # error: already mounted
             mounted=2
-            echo "Already Mounted: x=$x"
+            debug "$ISO_NAME Already Mounted by 'mount'"
             ;;
         *)
             # success
             mounted=1
-            echo "Mounted: x=$x"
+            debug "$ISO_NAME mounted by 'mount'"
             ;;
         esac
     fi
     #
     if [[ $mounted -eq 0 ]]; then
-        echo "$_filename: Unable to mount '$ISO_NAME'"
+        echo "Unable to mount '$ISO_NAME'"
         echo "You will need to mount '$ISO'"
         echo "Or load the Disc your self"
-        read -p "$_filename: Run the installer anyway? (y/n)" a
+        read -p "Run the installer anyway? (y/n)" a
         case $a in
-        y) ready=1 ;;
+        y) mounted=3 ;; # maybe mounted
         esac
     fi
-    # Run the installers: if mounted=1 or mounted=2 'already mounted'
+    # installing GPL
     if [[ $mounted -gt 0 ]]; then
-        wineInstall
-    else
-        echo "$_filename: Not ready"
-    fi
-    # unmount iso is mounted=1 not mounted=2 'already mounted'
-    if [[ mounted -eq 1 ]]; then
-        echo "$_filename: unmounting"
-        if ! udisksctlUnmount; then
-            if ! rootUnmount; then
-                echo "$_filename: Didn't unmount '$ISO_NAME'"
+        local GPL_INSTALLED=0
+        if [ -f $GPL_EXE ]; then        
+            debug "$(basename $GPL_EXE) already installed at $(dirname $GPL_EXE)"
+            GPL_INSTALLED=1
+        fi
+        if [[ $GPL_INSTALLED -eq 0 ]]; then
+            debug "Installing GPL"
+            if ! WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" &>>"$INSTALLER_LOG"; then
+                debug "Failed to install GPL"
             fi
         fi
+        # installing GEM
+        local GEM_INSTALLED=0
+        if [ -f $GEM_EXE ]; then
+            debug "$(basename $GEM) already installed at $(dirname $GEM)"
+            GEM_INSTALLED=1
+        fi
+        if [[ "$GEM_INSTALLED" -eq 0 ]]; then
+            debug "installing GEM"
+            if ! WINEPREFIX="$WINEPREFIX" wine "$GEM" &>>"$GEM_LOG"; then
+                debug "failed to install GEM"
+            fi
+        fi
+    else
+        debug "Not ready to install GPL"
+    fi
+    # if mounted here
+    if [[ mounted -eq 1 ]]; then
+        debug "unmounting $ISO_NAME"
+        udisksctlUnmount
+        x=$?
+        case "$x" in
+        2)
+            debug "$ISO_NAME not unmounted by udisksctl"
+            rootUnmount
+            y=$?
+            case "$y" in
+            1) debug "$ISO_NAME failed to unmount by 'unmount'" ;;
+            2) debug "$ISO_NAME was not mounted by 'unmount'" ;;
+            *) debug "$ISO_NAME unmounted by 'unmount'" ;;
+            esac
+            ;;
+        1) debug "$ISO_NAME failed to unmount by udisksctl" ;;
+        *) debug "$ISO_NAME unmounted by udisksctl" ;;
+        esac
+    elif [[ mounted -eq 2 ]]; then
+        debug "$ISO_NAME already mounted"
+    else
+        debug "$ISO_NAME was not mounted "
     fi
 }
 #
@@ -314,19 +362,19 @@ darwinInstall() {
     if ! download $ISO $ISO_URL ||
         ! download $INSTALLER $INSTALLER_URL ||
         ! download $GEM $GEM_URL; then
-        echo "$_filename: Download failed" >&2
+        error "Download failed"
         return 1
     fi
     # verify downloaded files
     if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" ||
         ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" ||
         ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
-        echo verify failed
+        debug verify failed
         return 1
     fi
     # if there isn't wine ?
     if [ ! -f "$WINE" ]; then
-        echo "$_filename: can't find wine, get wine on the \$PATH and try again" >&2
+        error "can't find wine, get wine on the \$PATH and try again"
         return 1
     fi
     # Mounting the iso
@@ -335,14 +383,14 @@ darwinInstall() {
         mounted=0
     fi
     if ! $mounted; then
-        echo "$_filename: TODO: Can't mount $ISO_NAME, is it mounted already?" >&2
+        error "TODO: Can't mount $ISO_NAME, is it mounted already?"
     fi
-    echo "$_filename: TODO: You may not find the CD as a wine drive, sorry"
+    debug "TODO: You may not find the CD as a wine drive, sorry"
     # run
-    wineInstall
+    installGPL
     # unmount iso
     if $mounted; then
-        echo "$_filename: TODO: Can't unmount $ISO_NAME" >&2
+        error "TODO: Can't unmount $ISO_NAME"
         return 1
     fi
 }
@@ -353,18 +401,18 @@ mainInstall() {
     case $OSTYPE in
     linux*)
         if ! linuxInstall; then
-            echo "$_filename: Installation did not complete successfully" >&2
+            error "Installation did not complete successfully"
             return 1
         fi
         ;;
     darwin*)
         if ! darwinInstall; then
-            echo "$_filename: Installation did not complete successfully" >&2
+            error "Installation did not complete successfully"
             return 1
         fi
         ;;
     *)
-        echo "$_filename: Installation for OS '$OSTYPE' is not implemented." >&2
+        error "Installation for OS '$OSTYPE' is not implemented."
         return 1
         ;;
     esac
@@ -390,10 +438,10 @@ uninstall() {
         fi
         ;;
     n)
-        echo "Uninstall cancelled." >&2
+        error "Uninstall cancelled."
         ;;
     *)
-        echo "Unknown option '$u', Uninstall cancelled." >&2
+        error "Unknown option '$u', Uninstall cancelled."
         return 1
         ;;
     esac
@@ -402,14 +450,14 @@ uninstall() {
 # usage
 #
 usage() {
-    echo "Grand Prix Legends Wine Installer v$VERSION"
-    echo "usage: '$_filename [verb] [options]'"
-    echo "verbs: "
-    echo "  install        'run GPL installers'"
-    echo "  uninstall      'remove GPL and Wine Prefix'"
-    echo "options:"
-    echo "  -h --help      'Show this'"
-    echo "  -v --version   'Show '$_filename' version'"
+    debug "Grand Prix Legends Wine Installer v$VERSION"
+    debug "usage: '$_filename [verb] [options]'"
+    debug "verbs: "
+    debug "  install        'run GPL installers'"
+    debug "  uninstall      'remove GPL and Wine Prefix'"
+    debug "options:"
+    debug "  -h --help      'Show this'"
+    debug "  -v --version   'Show '$_filename' version'"
 }
 #
 if [[ $# -lt 1 ]]; then
@@ -428,11 +476,11 @@ option() {
         ;;
     v)
         OPTKEY='v'
-        echo v$VERSION
+        debug v$VERSION
         exit
         ;;
     *)
-        echo "$_filename: Invalid option '$1'" >&2
+        error "Invalid option '$1'"
         exit 1
         ;;
     esac
@@ -448,7 +496,7 @@ while getopts ":hvu-:" o; do
             option 'v' "$OPTARG"
             ;;
         *)
-            echo "$_filename: Unknown option --${OPTARG}" >&2
+            error "Unknown option --${OPTARG}"
             exit 1
             ;;
         esac
@@ -461,9 +509,9 @@ while getopts ":hvu-:" o; do
         ;;
     *)
         if [ "$OPTERR" != 1 ] || [ "${OPTSPEC:0:1}" = ":" ]; then
-            echo "$_filename: Non-option argument: '-${OPTARG}'" >&2
+            error "Non-option argument: '-${OPTARG}'"
         fi
-        echo "$_filename: Unknown option -${OPTARG}" >&2
+        error "Unknown option -${OPTARG}"
         exit 1
         ;;
     esac
@@ -471,16 +519,17 @@ done
 case $1 in
 install)
     if mainInstall; then
-        echo "$_filename: done"
+        debug "done"
     else
-        echo "$_filename: completed with error"
+        error "done with error"
     fi
     ;;
 uninstall)
     uninstall
     ;;
 *)
-    echo "$_filename: Unkown verb '$1'"
+    error "Unkown verb '$1'"
+    exit 1
     ;;
 
 esac
