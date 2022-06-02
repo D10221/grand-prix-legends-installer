@@ -349,7 +349,7 @@ Install() {
         fi
         if [[ $GPL_INSTALLED -eq 0 ]]; then
             debug "Installing GPL"
-            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" >"$INSTALLER_LOG" 2>%1; then
+            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" > "$INSTALLER_LOG" 2>&1; then
                 GPL_INSTALLED=1
                 debug "installed GPL"
             else
@@ -367,7 +367,7 @@ Install() {
     fi
     if [[ $GPL_INSTALLED -eq 1 ]] && [[ "$GEM_INSTALLED" -eq 0 ]]; then
         debug "installing GEM"
-        if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" >"$GEM_LOG" 2>%1; then
+        if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" >"$GEM_LOG" 2>&1; then
             debug "installed GEM?"
         else
             debug "failed to install GEM"
