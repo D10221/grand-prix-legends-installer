@@ -56,6 +56,8 @@ WSL=0
 if [ ! -z "$WSL_DISTRO_NAME" ] || [[ $(uname -r) =~ "-microsoft-" ]]; then
     WSL=1
 fi
+# do mount iso unless '--nomount'
+MOUNT=1
 #
 # error echoes to stderr
 #
@@ -127,8 +129,8 @@ verify() {
 # Args:
 #   $1 $ISO_DEVICE
 #
-udisksctlInfoBackingFile() {
-    local BACKINGFILE=""
+userMountBackingFile() {
+    local USER_MOUNT_BACKING_FILE=""
     local UDISKSCTL_INFO=$(udisksctl info -b "$1" | grep BackingFile)
     local r="\s+BackingFile:\s+(.*)"
     if [[ "$UDISKSCTL_INFO" =~ $r ]]; then
@@ -137,50 +139,32 @@ udisksctlInfoBackingFile() {
         return 1
     fi
 }
+UNMOUNT=0
 #
 # ???
 #
-udisksctlMount() {
+userMount() {
     # get the device backing file
-    BACKINGFILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
+    USER_MOUNT_BACKING_FILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
     # already mounted?
-    if [ -f "$BACKINGFILE" ] && [ $BACKINGFILE == $ISO ]; then # is mounted
-        debug "$ISO_NAME Already mounted"
-        return 2
-    elif udisksctl loop-setup -f $ISO; then # mount it
+    if [ -f "$USER_MOUNT_BACKING_FILE" ] && [ $USER_MOUNT_BACKING_FILE == $ISO ]; then
+        return 0
+    elif udisksctl loop-setup -f $ISO; then
         # mounted: update the backing file
-        BACKINGFILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
-    fi
-    #
-    if ! [ -f "$BACKINGFILE" ]; then
-        error "failed to mount '$ISO' on '$ISO_DEVICE' device!"
-        return 1 # not mounted
-    fi
-    #
-    if [ $BACKINGFILE != $ISO ]; then
-        error "Wrong '$ISO' on '$ISO_DEVICE' device?"
-        return 1 # not mounted
-    fi
-}
-UNMOUNT=0
-#
-# unmount $ISO if not mounted
-#
-# returns:
-#   2: not mounted
-#   1: failed to unmount
-#
-udisksctlUnmount() {
-    # if BACKINGFILE is set, is mounted by udisksctl
-    if [ ! -f "$BACKINGFILE" ] || [ $BACKINGFILE != $ISO ]; then
-        debug BACKINGFILE=$BACKINGFILE
-        return 2 # not mounted by udisksctl
-    fi
-    if udisksctl unmount -b $ISO_DEVICE; then
+        USER_MOUNT_BACKING_FILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
         UNMOUNT=1
     else
-        return 1 # failed to unmount
+        return 1 # failed
     fi
+}
+#
+# unmount user mounted ISO
+#
+userUnmount() {
+    if [[ $UNMOUNT -eq 1 ]] && [ -f "$USER_MOUNT_BACKING_FILE" ] && [ $USER_MOUNT_BACKING_FILE == $ISO ]; then
+        return udisksctl unmount -b $ISO_DEVICE
+    fi
+    return 1
 }
 #
 # mount ISO , needs root
@@ -191,31 +175,30 @@ Mount() {
     if [ -z "$(mount | grep $ISO_NAME)"]; then
         info "Mounting '$ISO_NAME' into '$ISO_MOUNTING_POINT'"
         if ! $SUDO mkdir -p "$ISO_MOUNTING_POINT"; then
-            return 1
+            return 1 # failed
         fi
         if [[ $WSL -eq 1 ]]; then
             # WSL
             read -p 'Please enter Drive letter [az-AZ]: ' DRIVE
             if ! [[ "$DRIVE" =~ ^[a-zA-Z]$ ]]; then
                 error "'$DRIVE' is not a valid drive letter"
-                return 1
+                return 1 # failed
             fi
             if $SUDO mount -t drvfs "$DRIVE:" "$ISO_MOUNTING_POINT"; then
-                UNMOUNT=1
+                UNMOUNT=1 # flag unmount
             else
-                return 1
+                return 1 # failed
             fi
         else
             #linux
             if $SUDO mount -o ro,loop "$ISO" "$ISO_MOUNTING_POINT"; then
-                UNMOUNT=1
+                UNMOUNT=1 # flag unmount
             else
-                return 1 # mounted
+                return 1 # failed
             fi
         fi
     else
-        error "'$ISO_NAME' seems to be mounted already"
-        return 2
+        return 0 # mounted
     fi
 }
 #
@@ -223,12 +206,53 @@ Mount() {
 #
 Unmount() {
     if [[ $UNMOUNT -eq 1 ]]; then
-        local SUDO=$(Sudo)
-        if $SUDO unmount $ISO_MOUNTING_POINT; then
+        local SUDO="$(Sudo)"
+        if $SUDO umount "$ISO_MOUNTING_POINT"; then
             debug "Unmounted $ISO"
         else
-            error "$SUDO unmount $ISO_MOUNTING_POINT failed"
+            error "'$SUDO umount $ISO_MOUNTING_POINT' failed"
             return 1 # fail
+        fi
+    fi
+}
+#
+#
+#
+tryMount() {    
+    if [[ $MOUNT -eq 1 ]]; then
+        if userMount; then # user mounted
+            mounted=1
+            debug "$ISO_NAME 'Mounted' by udisksctl"
+            return 0
+        elif Mount; then # system mounted
+            mounted=1
+            debug "$ISO_NAME 'Mounted' by 'mount'"
+            return 0
+        else
+            msg="Unable to mount '$ISO_NAME'\n"
+            msg+=" You will need to mount '$ISO'\n"
+            msg+=" Or load the Disc your self.\n"
+            msg+=" Relaunch with '--nomount' option to skip this error"
+            error "$msg"
+            return 1
+        fi
+    fi
+}
+#
+#
+#
+tryUnmount()
+{
+    if [[ $UNMOUNT -eq 1 ]]; then
+        debug "unmounting $ISO_NAME"
+        if userUnmount; then
+            debug "unmounted $ISO_NAME by 'udisksctl'"
+        else
+            if Unmount; then
+                debug "$ISO_NAME 'unmounted' by 'unmount'"
+            else
+                error "Failed to unmount $ISO"
+            fi
         fi
     fi
 }
@@ -255,121 +279,48 @@ linuxInstall() {
         error "can't find wine, get wine on the \$PATH and try again"
         return 1
     fi
-    # Mounting the iso
+    # tryMount
     local mounted=0
-    if udisksctlMount; then
+    if tryMount; then
         mounted=1
-        debug "$ISO_NAME 'Mounted' by udisksctl"
-    else
-        case "$?" in
-        1)
-            # error
-            mounted=0
-            debug "$ISO_NAME 'Not Mounted' by udisksctl"
-            ;;
-        2)
-            # error: already mounted
-            mounted=2
-            debug "$ISO_NAME 'Already Mounted' by udisksctl"
-            ;;
-        *)
-            error "'Unnkown' error by udisksctl"
-            ;;
-        esac
-    fi
-    # Couldn't mount in user space, try with 'mount'
-    if [[ $mounted -eq 0 ]]; then
-        if Mount; then
-            mounted=1
-            debug "$ISO_NAME 'Mounted' by 'mount'"
-        else
-            case "$?" in
-            1)
-                # error
-                mounted=0
-                debug "$ISO_NAME 'Not Mounted' by 'mount'"
-                ;;
-            2)
-                # error: already mounted
-                mounted=2
-                debug "$ISO_NAME 'Already Mounted' by 'mount'"
-                ;;
-            *)
-                debug "'Unkown' error by 'mount'"
-                ;;
-            esac
-        fi
-    fi
-    #
-    if [[ $mounted -eq 0 ]]; then
-        echo "Unable to mount '$ISO_NAME'"
-        echo "You will need to mount '$ISO'"
-        echo "Or load the Disc your self"
-        read -p "Run the installer anyway? (y/n)" a
-        case $a in
-        y) mounted=3 ;; # maybe mounted
-        esac
     fi
     # installing GPL
-    if [[ $mounted -gt 0 ]]; then
-        local GPL_INSTALLED=0
+    local GPL_INSTALLED=0
+    if [[ $mounted -eq 1 ]]; then
         if [ -f $GPL_EXE ]; then
-            debug "$(basename $GPL_EXE) already installed at $(dirname $GPL_EXE)"
+            debug "$(basename $GPL_EXE) installed at $(dirname $GPL_EXE)"
             GPL_INSTALLED=1
         fi
         if [[ $GPL_INSTALLED -eq 0 ]]; then
             debug "Installing GPL"
             if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" &>>"$INSTALLER_LOG"; then
-                debug "installed GPL?"
+                GPL_INSTALLED=1
+                debug "installed GPL"
             else
                 debug "Failed to install GPL"
             fi
         fi
-        # installing GEM
-        local GEM_INSTALLED=0
-        if [ -f $GEM_EXE ]; then
-            debug "$(basename $GEM) already installed at $(dirname $GEM)"
-            GEM_INSTALLED=1
-        fi
-        if [[ "$GEM_INSTALLED" -eq 0 ]]; then
-            debug "installing GEM"
-            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" &>>"$GEM_LOG"; then
-                debug "installed GEM?"
-            else
-                debug "failed to install GEM"
-            fi
-        fi
     else
-        debug "Not ready to install GPL"
+        debug "Can't install GPL"
     fi
-    # if mounted here
-    if [[ mounted -eq 1 ]]; then
-        debug "unmounting $ISO_NAME"
-        if udisksctlUnmount; then
-            debug "unmounted $ISO_NAME by 'udisksctl'"
+    # installing GEM
+    local GEM_INSTALLED=0
+    if [ -f $GEM_EXE ]; then
+        debug "$(basename $GEM) installed at $(dirname $GEM)"
+        GEM_INSTALLED=1
+    fi
+    if [[ $GPL_INSTALLED -eq 1 ]] && [[ "$GEM_INSTALLED" -eq 0 ]]; then
+        debug "installing GEM"
+        if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" &>>"$GEM_LOG"; then
+            debug "installed GEM?"
         else
-            case "$?" in
-            2)
-                debug "$ISO_NAME not 'unmounted' by 'udisksctl'"
-                if Unmount; then
-                    debug "$ISO_NAME 'unmounted' by 'unmount'"
-                else
-                    case "$?" in
-                    1) debug "$ISO_NAME failed to unmount by 'unmount'" ;;
-                    2) debug "$ISO_NAME was 'not mounted' by 'unmount'" ;;
-                    *) debug "unkown error unmounting $ISO_NAME by 'unmount'" ;;
-                    esac
-                fi
-                ;;
-            1) debug "$ISO_NAME failed to 'unmount' by 'udisksctl'" ;;
-            *) debug "unkown error unmounting $ISO_NAME by 'udisksctl'" ;;
-            esac
+            debug "failed to install GEM"
         fi
-    elif [[ mounted -eq 2 ]]; then
-        debug "not unmounting $ISO_NAME, 'Already mounted'"
     else
-        debug "not unmounting $ISO_NAME, 'Not Mounted'"
+        error "Can't install GEM"
     fi
+    # tryUnmount
+    tryUnmount    
 }
 #
 #
@@ -476,6 +427,7 @@ usage() {
     echo "options:"
     echo "  -h --help      'Show this'"
     echo "  -v --version   'Show '$_filename' version'"
+    echo "  --nomount     'Do not try to mount ISO'"
 }
 #
 if [[ $# -lt 1 ]]; then
@@ -483,19 +435,22 @@ if [[ $# -lt 1 ]]; then
     exit 1
 fi
 #
-#
+# Exec Opts
 #
 option() {
     case $1 in
-    h)
+    help)
         OPTKEY='h'
         usage
         exit
         ;;
-    v)
+    version)
         OPTKEY='v'
         debug v$VERSION
         exit
+        ;;
+    nomount)        
+        MOUNT=0
         ;;
     *)
         error "Invalid option '$1'"
@@ -503,15 +458,20 @@ option() {
         ;;
     esac
 }
+# parse opts
 while getopts ":hvu-:" o; do
     case "${o}" in
     -)
         case "${OPTARG}" in
         help)
-            option 'h' "$OPTARG"
+            option 'help' "$OPTARG"
             ;;
         version)
-            option 'v' "$OPTARG"
+            option 'version' "$OPTARG"
+            ;;
+        nomount)
+            shift
+            option 'nomount' "$OPTARG"
             ;;
         *)
             error "Unknown option --${OPTARG}"
@@ -520,10 +480,10 @@ while getopts ":hvu-:" o; do
         esac
         ;;
     h)
-        option "$o" "$OPTARG"
+        option "help" "$OPTARG"
         ;;
     v)
-        option "$o" "$OPTARG"
+        option "version" "$OPTARG"
         ;;
     *)
         if [ "$OPTERR" != 1 ] || [ "${OPTSPEC:0:1}" = ":" ]; then
@@ -534,6 +494,7 @@ while getopts ":hvu-:" o; do
         ;;
     esac
 done
+# launch verbs
 case $1 in
 install)
     if mainInstall; then
