@@ -163,6 +163,7 @@ udisksctlMount() {
         return 1 # not mounted
     fi
 }
+UNMOUNT=0
 #
 # unmount $ISO if not mounted
 #
@@ -176,7 +177,9 @@ udisksctlUnmount() {
         debug BACKINGFILE=$BACKINGFILE
         return 2 # not mounted by udisksctl
     fi
-    if ! udisksctl unmount -b $ISO_DEVICE; then
+    if udisksctl unmount -b $ISO_DEVICE; then
+        UNMOUNT=1
+    else
         return 1 # failed to unmount
     fi
 }
@@ -198,12 +201,16 @@ Mount() {
                 error "'$DRIVE' is not a valid drive letter"
                 return 1
             fi
-            if ! $SUDO mount -t drvfs "$DRIVE:" "$ISO_MOUNTING_POINT"; then
+            if $SUDO mount -t drvfs "$DRIVE:" "$ISO_MOUNTING_POINT"; then
+                UNMOUNT=1
+            else
                 return 1
             fi
         else
             #linux
-            if ! $SUDO mount -o ro,loop "$ISO" "$ISO_MOUNTING_POINT"; then
+            if $SUDO mount -o ro,loop "$ISO" "$ISO_MOUNTING_POINT"; then
+                UNMOUNT=1
+            else
                 return 1 # mounted
             fi
         fi
@@ -215,10 +222,12 @@ Mount() {
 #
 # unmount ISO_MOUNTING_POINT , needs root
 #
-rootUnmount() {
+Unmount() {
     local SUDO=$(Sudo)
     if ! [ -z "$(mount | grep $ISO_NAME)"]; then # if mounted
-        if ! $SUDO unmount $ISO_MOUNTING_POINT; then
+        if $SUDO unmount $ISO_MOUNTING_POINT; then
+            debug "Unmounted $ISO"
+        else
             error "$SUDO unmount $ISO_MOUNTING_POINT failed"
             return 1 # fail
         fi
@@ -345,7 +354,7 @@ linuxInstall() {
             case "$?" in
             2)
                 debug "$ISO_NAME not 'unmounted' by 'udisksctl'"
-                if rootUnmount; then
+                if Unmount; then
                     debug "$ISO_NAME 'unmounted' by 'unmount'"
                 else
                     case "$?" in
@@ -391,6 +400,7 @@ darwinInstall() {
     # Mounting the iso
     mounted=1
     if hdiutil mount $ISO; then
+        UNMOUNT=1
         mounted=0
     fi
     if ! $mounted; then
