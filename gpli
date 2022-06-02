@@ -25,7 +25,7 @@
 # TODO:
 #  - setup prefix for vb6 dependencies
 #  - redo argument parsing, its very picky about switch order
-#  - ???
+#  - don't download until required
 #
 
 # this script version
@@ -457,6 +457,8 @@ usage() {
     echo " NOUSERMOUNT     'Do not try to mount ISO in userspace'"
     echo " NOROOTMOUNT     'Do not try to mount ISO if requires root access"
     echo " DEBUG           'show debug info'"
+    echo "examples: "
+    echo "$ DEBUG=1 NOMOUNT=1 NOROOTMOUNT=1 NOUSERMOUNT=1 ./gpli.local install"
 }
 #
 if [[ $# -lt 1 ]]; then
