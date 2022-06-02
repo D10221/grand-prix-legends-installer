@@ -144,14 +144,17 @@ UNMOUNT=0
 # ???
 #
 userMount() {
+    if [[ $WSL -eq 1 ]]; then
+        return 1 #failed
+    fi
     # get the device backing file
-    USER_MOUNT_BACKING_FILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
+    USER_MOUNT_BACKING_FILE="$(userMountBackingFile $ISO_DEVICE)"
     # already mounted?
     if [ -f "$USER_MOUNT_BACKING_FILE" ] && [ $USER_MOUNT_BACKING_FILE == $ISO ]; then
         return 0
     elif udisksctl loop-setup -f $ISO; then
         # mounted: update the backing file
-        USER_MOUNT_BACKING_FILE="$(udisksctlInfoBackingFile $ISO_DEVICE)"
+        USER_MOUNT_BACKING_FILE="$(userMountBackingFile $ISO_DEVICE)"
         UNMOUNT=1
     else
         return 1 # failed
@@ -161,40 +164,52 @@ userMount() {
 # unmount user mounted ISO
 #
 userUnmount() {
+    if [[ $WSL -eq 1 ]]; then
+        return 1 #failed
+    fi
     if [[ $UNMOUNT -eq 1 ]] && [ -f "$USER_MOUNT_BACKING_FILE" ] && [ $USER_MOUNT_BACKING_FILE == $ISO ]; then
         return udisksctl unmount -b $ISO_DEVICE
     fi
     return 1
 }
 #
+# Args:
+#       $1  'Drive Letter'
+#
+validWslDrive() {
+    if [ -z "$1" ]; then
+        error "wsldrive is required to mount $ISO_NAME, relaunch with --nomount OR --wsldrive='<drive>', see --help for more"
+        return 1 # failed
+    fi
+    if ! [[ "$1" =~ ^[a-zA-Z]$ ]]; then
+        error "'$1' is not a valid drive letter, see --help for more"
+        return 1 # failed
+    fi
+}
+#
 # mount ISO , needs root
 #
 Mount() {
     # if not mounted
-    local SUDO=$(Sudo)
     if [ -z "$(mount | grep $ISO_NAME)"]; then
         info "Mounting '$ISO_NAME' into '$ISO_MOUNTING_POINT'"
-        if ! $SUDO mkdir -p "$ISO_MOUNTING_POINT"; then
-            return 1 # failed
-        fi
         if [[ $WSL -eq 1 ]]; then
             # WSL
-            if [ -z "$DRIVE" ]; then
-                error "wsl drive required, relaunch with --nomount OR --wsldrive='<drive>', see --help for more"
+            if ! validWslDrive $WSLDRIVE; then
                 return 1 # failed
             fi
-            if ! [[ "$DRIVE" =~ ^[a-zA-Z]$ ]]; then
-                error "'$DRIVE' is not a valid drive letter"
-                return 1 # failed
-            fi
-            if $SUDO mount -t drvfs "$DRIVE:" "$ISO_MOUNTING_POINT"; then
+            if "$(Sudo)" mkdir -p "$ISO_MOUNTING_POINT" &&
+                "$(Sudo)" mount -t drvfs "$WSLDRIVE:" "$ISO_MOUNTING_POINT"; then
+                # OK
                 UNMOUNT=1 # flag unmount
             else
                 return 1 # failed
             fi
         else
             #linux
-            if $SUDO mount -o ro,loop "$ISO" "$ISO_MOUNTING_POINT"; then
+            if "$(Sudo)" mkdir -p "$ISO_MOUNTING_POINT" &&
+                "$(Sudo)" mount -o ro,loop "$ISO" "$ISO_MOUNTING_POINT"; then
+                #OK
                 UNMOUNT=1 # flag unmount
             else
                 return 1 # failed
@@ -299,11 +314,11 @@ linuxInstall() {
                 GPL_INSTALLED=1
                 debug "installed GPL"
             else
-                debug "Failed to install GPL"
+                error "Failed to install GPL"
             fi
         fi
     else
-        debug "Can't install GPL"
+        error "Can't install GPL"
     fi
     # installing GEM
     local GEM_INSTALLED=0
@@ -423,7 +438,7 @@ uninstall() {
 # Returns:
 #   $2  'value'
 #
-optionValue(){
+optionValue() {
     local r="\w+=(.*)"
     if [[ "$1" =~ $r ]]; then
         echo "${BASH_REMATCH[1]}"
@@ -474,8 +489,10 @@ option() {
         MOUNT=0
         ;;
     wsldrive)
-        DRIVE="$2"
-        echo DRIVE="$2"
+        WSLDRIVE="$2"
+        if ! validWslDrive $WSLDRIVE; then
+            exit 1
+        fi
         ;;
     *)
         error "Invalid option '$1'"
@@ -499,7 +516,7 @@ while getopts ":hvu-:" o; do
             option 'nomount' "$OPTARG"
             ;;
         wsldrive=*)
-            shift            
+            shift
             option 'wsldrive' "$(optionValue $OPTARG)"
             ;;
         *)
