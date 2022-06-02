@@ -29,7 +29,7 @@
 #  - setup prefix for vb6 dependencies
 #  - redo argument parsing, its very picky about switch order
 #  - don't download until required
-#
+#  - switches: NODOWNLOAD, NOCHECKSUM
 
 # this script version
 VERSION=0.0.1
