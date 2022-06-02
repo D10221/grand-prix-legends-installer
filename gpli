@@ -26,7 +26,7 @@
 # Notes:
 #  - on 'wsl' wine doesn't see the mounted drive even when successfully mounted
 # TODO:
-#  - setup prefix for vb6 dependencies
+#  - download and setup prefix for vb6 dependencies
 #  - redo argument parsing, its very picky about switch order
 #  - don't download until required
 #  - switches: NODOWNLOAD, NOCHECKSUM
