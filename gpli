@@ -179,7 +179,10 @@ Mount() {
         fi
         if [[ $WSL -eq 1 ]]; then
             # WSL
-            read -p 'Please enter Drive letter [az-AZ]: ' DRIVE
+            if [ -z "$DRIVE" ]; then
+                error "wsl drive required, relaunch with --nomount OR --wsldrive='<drive>', see --help for more"
+                return 1 # failed
+            fi
             if ! [[ "$DRIVE" =~ ^[a-zA-Z]$ ]]; then
                 error "'$DRIVE' is not a valid drive letter"
                 return 1 # failed
@@ -218,7 +221,7 @@ Unmount() {
 #
 #
 #
-tryMount() {    
+tryMount() {
     if [[ $MOUNT -eq 1 ]]; then
         if userMount; then # user mounted
             mounted=1
@@ -241,8 +244,7 @@ tryMount() {
 #
 #
 #
-tryUnmount()
-{
+tryUnmount() {
     if [[ $UNMOUNT -eq 1 ]]; then
         debug "unmounting $ISO_NAME"
         if userUnmount; then
@@ -320,7 +322,7 @@ linuxInstall() {
         error "Can't install GEM"
     fi
     # tryUnmount
-    tryUnmount    
+    tryUnmount
 }
 #
 #
@@ -416,6 +418,20 @@ uninstall() {
     esac
 }
 #
+# Args:
+#   $1  'option' ex, 'x=1'
+# Returns:
+#   $2  'value'
+#
+optionValue(){
+    local r="\w+=(.*)"
+    if [[ "$1" =~ $r ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        return 1
+    fi
+}
+#
 # usage
 #
 usage() {
@@ -427,7 +443,12 @@ usage() {
     echo "options:"
     echo "  -h --help      'Show this'"
     echo "  -v --version   'Show '$_filename' version'"
-    echo "  --nomount     'Do not try to mount ISO'"
+    echo "  --nomount      'Do not try to mount ISO'"
+    echo "  --wsldrive='<drive>'"
+    echo "      desc:   'drive letter to mount in wsl environment'"
+    echo "              'required on WSL'"
+    echo "      <drive>: [az-AZ]"
+    echo "      example '--wsldrive=d'"
 }
 #
 if [[ $# -lt 1 ]]; then
@@ -449,8 +470,12 @@ option() {
         debug v$VERSION
         exit
         ;;
-    nomount)        
+    nomount)
         MOUNT=0
+        ;;
+    wsldrive)
+        DRIVE="$2"
+        echo DRIVE="$2"
         ;;
     *)
         error "Invalid option '$1'"
@@ -472,6 +497,10 @@ while getopts ":hvu-:" o; do
         nomount)
             shift
             option 'nomount' "$OPTARG"
+            ;;
+        wsldrive=*)
+            shift            
+            option 'wsldrive' "$(optionValue $OPTARG)"
             ;;
         *)
             error "Unknown option --${OPTARG}"
