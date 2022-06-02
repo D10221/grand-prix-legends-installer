@@ -74,8 +74,9 @@ debug() {
 #   $1  'file'
 #   $2  'url'
 #
-download() {
+download() {    
     if [ ! -f "$1" ]; then
+        mkdir -p "$(dirname $1)"
         return $(wget $2 -O "$1")
     fi
     return 0
@@ -105,11 +106,6 @@ verify() {
         return 1
     fi
     return 0
-}
-# create targets
-createTargets() {
-    mkdir -p "$CACHE"
-    mkdir -p "$WINEPREFIX"
 }
 #
 # Args:
@@ -226,8 +222,6 @@ rootUnmount() {
 #
 linuxInstall() {
     # create dirs to store downloaded files and prefix
-    createTargets
-    #
     if ! download $ISO $ISO_URL ||
         ! download $INSTALLER $INSTALLER_URL ||
         ! download $GEM $GEM_URL; then
@@ -302,13 +296,15 @@ linuxInstall() {
     # installing GPL
     if [[ $mounted -gt 0 ]]; then
         local GPL_INSTALLED=0
-        if [ -f $GPL_EXE ]; then        
+        if [ -f $GPL_EXE ]; then
             debug "$(basename $GPL_EXE) already installed at $(dirname $GPL_EXE)"
             GPL_INSTALLED=1
         fi
         if [[ $GPL_INSTALLED -eq 0 ]]; then
             debug "Installing GPL"
-            if ! WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" &>>"$INSTALLER_LOG"; then
+            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" &>>"$INSTALLER_LOG"; then
+                debug "installed GPL?"
+            else
                 debug "Failed to install GPL"
             fi
         fi
@@ -320,7 +316,9 @@ linuxInstall() {
         fi
         if [[ "$GEM_INSTALLED" -eq 0 ]]; then
             debug "installing GEM"
-            if ! WINEPREFIX="$WINEPREFIX" wine "$GEM" &>>"$GEM_LOG"; then
+            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" &>>"$GEM_LOG"; then
+                debug "installed GEM?"
+            else
                 debug "failed to install GEM"
             fi
         fi
@@ -356,8 +354,6 @@ linuxInstall() {
 #
 #
 darwinInstall() {
-    # create dirs to store downloaded files and prefix
-    createTargets
     #
     if ! download $ISO $ISO_URL ||
         ! download $INSTALLER $INSTALLER_URL ||
