@@ -71,8 +71,6 @@ darwin*)
     exit 1
     ;;
 esac
-# do mount iso unless '--nomount'
-MOUNT=1
 #
 # error echoes to stderr
 #
@@ -159,15 +157,18 @@ UNMOUNT=0
 # ???
 #
 userMount() {
+    if [[ $NOUSERMOUNT -eq 1 ]]; then # debug
+        return 1                      # not unmounted
+    fi
     # get the device backing file
     USER_MOUNT_BACKING_FILE="$(userMountBackingFile $ISO_DEVICE)"
     # already mounted?
     if [ -f "$USER_MOUNT_BACKING_FILE" ] && [ $USER_MOUNT_BACKING_FILE == $ISO ]; then
+        UNMOUNT=0
         return 0
     elif udisksctl loop-setup -f $ISO; then
-        # mounted: update the backing file
-        USER_MOUNT_BACKING_FILE="$(userMountBackingFile $ISO_DEVICE)"
         UNMOUNT=1
+        return 0 # mounted
     else
         return 1 # failed
     fi
@@ -176,10 +177,12 @@ userMount() {
 # unmount user mounted ISO
 #
 userUnmount() {
-    if [[ $UNMOUNT -eq 1 ]] && [ -f "$USER_MOUNT_BACKING_FILE" ] && [ $USER_MOUNT_BACKING_FILE == $ISO ]; then
-        return udisksctl unmount -b $ISO_DEVICE
+    if [[ $NOUSERMOUNT -eq 1 ]]; then
+        return 1
     fi
-    return 1
+    if ! udisksctl unmount -b $ISO_DEVICE; then
+        return 1
+    fi
 }
 #
 # Args:
@@ -196,9 +199,12 @@ validWslDrive() {
     fi
 }
 #
-# mount ISO , needs root
+# mount ISO with 'mount' , needs root
 #
 Mount() {
+    if [[ $NOROOTMOUNT -eq 1 ]]; then # debug
+        return 1                      # failed
+    fi
     # if not mounted
     if [ -z "$(mount | grep $ISO_NAME)"]; then
         info "Mounting '$ISO_NAME' into '$ISO_MOUNTING_POINT'"
@@ -232,49 +238,71 @@ Mount() {
 # unmount ISO_MOUNTING_POINT , needs root
 #
 Unmount() {
-    if [[ $UNMOUNT -eq 1 ]]; then
-        local SUDO="$(Sudo)"
-        if $SUDO umount "$ISO_MOUNTING_POINT"; then
-            debug "Unmounted $ISO"
-        else
-            error "'$SUDO umount $ISO_MOUNTING_POINT' failed"
-            return 1 # fail
-        fi
+    if ! [[ $UNMOUNT -eq 1 ]]; then        
+        return 0 # not mounted
+    fi
+    local SUDO="$(Sudo)"
+    if ! $SUDO umount "$ISO_MOUNTING_POINT"; then
+        error "'$SUDO umount $ISO_MOUNTING_POINT' failed"
+        return 1 # fail
     fi
 }
 #
 #
 #
 tryMount() {
-    if [[ $MOUNT -eq 1 ]]; then
-        if [ $OS == $OS_LINUX ] && userMount; then # user mounted
-            debug "$ISO_NAME 'Mounted' by udisksctl"
-            return 0
-        elif [ $OS == $OS_DARWIN ] && hdiutil mount "$ISO"; then
+    if [[ $NOMOUNT -eq 1 ]]; then
+        # --nomount?
+        return 0
+    fi
+    # by os
+    case $OS in
+    $OS_DARWIN)
+        if [ hdiutil mount "$ISO" ]; then
+            debug "$ISO_NAME '$OS' 'Mounted' by hdiutil"
             UNMOUNT=1
             return 0
-        elif [ $OS != $OS_DARWIN ] && Mount; then # system mounted
-            debug "$ISO_NAME 'Mounted' by 'mount'"
-            return 0
-        else
-            msg="Unable to mount '$ISO_NAME'\n"
-            msg+=" You will need to mount '$ISO'\n"
-            msg+=" Or load the Disc your self.\n"
-            msg+=" Relaunch with '--nomount' option to skip this error"
-            error "$msg"
-            return 1
         fi
-    fi
+        ;;
+    $OS_LINUX)
+        if userMount; then
+            debug "$ISO_NAME '$OS' 'Mounted' by 'userMount'"
+            return 0
+        fi
+        if Mount; then
+            debug "$ISO_NAME '$OS' 'Mounted' by 'Mount'"
+            return 0
+        fi
+        ;;
+    $OS_WSL)
+        if Mount; then
+            debug "$ISO_NAME '$OS' 'Mounted' by 'Mount'"
+            UNMOUNT=1
+            return 0
+        fi
+        ;;
+    *)
+        error "Mount '$ISO_NAME' on '$OS' in not implemented"
+        return 1 #failed
+        ;;
+    esac
+    # Failed
+    msg="'$OS': Unable to mount '$ISO_NAME'\n"
+    msg+=" You will need to mount '$ISO'\n"
+    msg+=" Or load the Disc your self.\n"
+    msg+=" Relaunch with '--nomount' option to skip this error"
+    error "$msg"
+    return 1
 }
 #
-#
+# try un ount iso iuf it was mounted
+# by $OS
 #
 tryUnmount() {
     if [[ $UNMOUNT -eq 1 ]]; then
         debug "unmounting $ISO_NAME"
-        echo OS=$OS
         if [ $OS == $OS_DARWIN ]; then
-            hdiutil unmount /Volumes/GPL 
+            hdiutil unmount /Volumes/GPL
         elif [ $OS == $OS_LINUX ] && userUnmount; then
             debug "unmounted $ISO_NAME by 'udisksctl'"
         elif Unmount; then
@@ -282,7 +310,6 @@ tryUnmount() {
         else
             error "Failed to unmount $ISO"
         fi
-
     fi
 }
 #
@@ -407,11 +434,17 @@ usage() {
     echo "  -h --help      'Show this'"
     echo "  -v --version   'Show '$_filename' version'"
     echo "  --nomount      'Do not try to mount ISO'"
-    echo "  --wsldrive='<drive>'"
-    echo "      desc:   'drive letter to mount in wsl environment'"
-    echo "              'required on WSL'"
-    echo "      <drive>: [az-AZ]"
-    echo "      example '--wsldrive=d'"
+    if [ $OS == $OS_WSL ]; then
+        echo "  --wsldrive='<drive>'"
+        echo "      desc:   'drive letter to mount in wsl environment'"
+        echo "              'required on WSL'"
+        echo "      <drive>: [az-AZ]"
+        echo "      example '--wsldrive=d'"
+    fi
+    echo "vars:"
+    echo " NOMOUNT         'Do not try to mount ISO'"
+    echo " NOUSERMOUNT     'Do not try to mount ISO in userspace'"
+    echo " NOROOTMOUNT     'Do not try to mount ISO if requires root access"
 }
 #
 if [[ $# -lt 1 ]]; then
@@ -430,11 +463,11 @@ option() {
         ;;
     version)
         OPTKEY='v'
-        debug v$VERSION
+        echo "v$VERSION"
         exit
         ;;
     nomount)
-        MOUNT=0
+        NOMOUNT=1
         ;;
     wsldrive)
         WSLDRIVE="$2"
@@ -454,14 +487,14 @@ while getopts ":hvu-:" o; do
     -)
         case "${OPTARG}" in
         help)
-            option 'help' "$OPTARG"
+            option 'help' "$(optionValue $OPTARG)"
             ;;
         version)
-            option 'version' "$OPTARG"
+            option 'version' "$(optionValue $OPTARG)"
             ;;
         nomount)
             shift
-            option 'nomount' "$OPTARG"
+            option 'nomount' "$(optionValue $OPTARG)"
             ;;
         wsldrive=*)
             shift
@@ -481,7 +514,7 @@ while getopts ":hvu-:" o; do
         ;;
     *)
         if [ "$OPTERR" != 1 ] || [ "${OPTSPEC:0:1}" = ":" ]; then
-            error "Non-option argument: '-${OPTARG}'"
+            error "bad optiont: '-${OPTARG}'"
         fi
         error "Unknown option -${OPTARG}"
         exit 1
