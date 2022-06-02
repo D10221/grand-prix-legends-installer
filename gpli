@@ -8,7 +8,7 @@
 # Tested on:
 #  - Ubuntu 20.4
 # Requires:
-#  - bash
+#  - bash 'on mac may require `brew install bash`'
 #  - wget
 #  - wine
 #  - md5sum|shasum
@@ -20,6 +20,8 @@
 #  - gplinstall_beta_1.08.exe from  grandprixlegends.info
 # Description:
 #  - Creates wine prefix, mounts iso and runs the installer
+# Notes: 
+# on 'wsl' wine doesn't see the mounted drive even when successfully mounted
 #
 
 # this script version
