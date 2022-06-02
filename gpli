@@ -71,8 +71,7 @@ debug() {
 #
 # info
 #
-info()
-{
+info() {
     echo -e "\e[36m$_filename/${FUNCNAME[1]}: $@\e[0m"
 }
 #
@@ -223,16 +222,14 @@ Mount() {
 # unmount ISO_MOUNTING_POINT , needs root
 #
 Unmount() {
-    local SUDO=$(Sudo)
-    if ! [ -z "$(mount | grep $ISO_NAME)"]; then # if mounted
+    if [[ $UNMOUNT -eq 1 ]]; then
+        local SUDO=$(Sudo)
         if $SUDO unmount $ISO_MOUNTING_POINT; then
             debug "Unmounted $ISO"
         else
             error "$SUDO unmount $ISO_MOUNTING_POINT failed"
             return 1 # fail
         fi
-    else
-        return 2 #not mounted by $(Sudo) mount
     fi
 }
 #
