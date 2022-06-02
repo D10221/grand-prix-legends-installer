@@ -238,7 +238,7 @@ Mount() {
 # unmount ISO_MOUNTING_POINT , needs root
 #
 Unmount() {
-    if ! [[ $UNMOUNT -eq 1 ]]; then        
+    if ! [[ $UNMOUNT -eq 1 ]]; then
         return 0 # not mounted
     fi
     local SUDO="$(Sudo)"
@@ -258,7 +258,7 @@ tryMount() {
     # by os
     case $OS in
     $OS_DARWIN)
-        if [ hdiutil mount "$ISO" ]; then
+        if hdiutil mount "$ISO"; then
             debug "$ISO_NAME '$OS' 'Mounted' by hdiutil"
             UNMOUNT=1
             return 0
@@ -349,7 +349,7 @@ Install() {
         fi
         if [[ $GPL_INSTALLED -eq 0 ]]; then
             debug "Installing GPL"
-            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" > "$INSTALLER_LOG" 2>&1; then
+            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" >"$INSTALLER_LOG" 2>&1; then
                 GPL_INSTALLED=1
                 debug "installed GPL"
             else
