@@ -30,6 +30,8 @@
 #  - redo argument parsing, its very picky about switch order
 #  - don't download until required
 #  - switches: NODOWNLOAD, NOCHECKSUM
+#  - uninstall doesn't uninstall but nukes the wine prefix
+#  - switch: --info, display installation details
 
 # this script version
 VERSION=0.0.1
