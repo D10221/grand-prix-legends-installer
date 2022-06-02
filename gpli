@@ -76,6 +76,16 @@ info()
     echo -e "\e[36m$_filename/${FUNCNAME[1]}: $@\e[0m"
 }
 #
+# SUDO
+#
+Sudo() {
+    if ! [[ "$EUID" -eq 0 ]]; then
+        echo 'sudo'
+    else
+        echo ''
+    fi
+}
+#
 #
 # args:
 #   $1  'file'
@@ -171,16 +181,6 @@ udisksctlUnmount() {
     fi
 }
 #
-# SUDO
-#
-Sudo() {
-    if ! [[ "$EUID" -eq 0 ]]; then
-        echo 'sudo'
-    else
-        echo ''
-    fi
-}
-#
 # mount ISO , needs root
 #
 Mount() {
@@ -216,9 +216,10 @@ Mount() {
 # unmount ISO_MOUNTING_POINT , needs root
 #
 rootUnmount() {
+    local SUDO=$(Sudo)
     if ! [ -z "$(mount | grep $ISO_NAME)"]; then # if mounted
-        if ! $(Sudo) unmount $ISO_MOUNTING_POINT; then
-            error "$(Sudo) unmount $ISO_MOUNTING_POINT failed"
+        if ! $SUDO unmount $ISO_MOUNTING_POINT; then
+            error "$SUDO unmount $ISO_MOUNTING_POINT failed"
             return 1 # fail
         fi
     else
