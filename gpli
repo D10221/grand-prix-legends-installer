@@ -4,9 +4,12 @@
 # Works on:
 #  - Ubuntu
 #  - Maybe Debian/Ubuntu derivatives
-#  - Partially on MACOS
+#  - MACOS
+#  - WSL (partially)
 # Tested on:
 #  - Ubuntu 20.4
+#  - MacOS Monterrey 12.3.1
+#  - Windows 10 Wsl Ubuntu 20.4
 # Requires:
 #  - bash 'on mac may require `brew install bash`'
 #  - wget
