@@ -330,26 +330,30 @@ linuxInstall() {
     # if mounted here
     if [[ mounted -eq 1 ]]; then
         debug "unmounting $ISO_NAME"
-        udisksctlUnmount
-        x=$?
-        case "$x" in
-        2)
-            debug "$ISO_NAME not unmounted by udisksctl"
-            rootUnmount
-            y=$?
-            case "$y" in
-            1) debug "$ISO_NAME failed to unmount by 'unmount'" ;;
-            2) debug "$ISO_NAME was not mounted by 'unmount'" ;;
-            *) debug "$ISO_NAME unmounted by 'unmount'" ;;
+        if udisksctlUnmount; then
+            debug "unmounted $ISO_NAME by 'udisksctl'"
+        else
+            case "$?" in
+            2)
+                debug "$ISO_NAME not 'unmounted' by 'udisksctl'"
+                if rootUnmount; then
+                    debug "$ISO_NAME 'unmounted' by 'unmount'"
+                else
+                    case "$?" in
+                    1) debug "$ISO_NAME failed to unmount by 'unmount'" ;;
+                    2) debug "$ISO_NAME was 'not mounted' by 'unmount'" ;;
+                    *) debug "unkown error unmounting $ISO_NAME by 'unmount'" ;;
+                    esac
+                fi
+                ;;
+            1) debug "$ISO_NAME failed to 'unmount' by 'udisksctl'" ;;
+            *) debug "unkown error unmounting $ISO_NAME by 'udisksctl'" ;;
             esac
-            ;;
-        1) debug "$ISO_NAME failed to unmount by udisksctl" ;;
-        *) debug "$ISO_NAME unmounted by udisksctl" ;;
-        esac
+        fi
     elif [[ mounted -eq 2 ]]; then
-        debug "$ISO_NAME already mounted"
+        debug "not unmounting $ISO_NAME, 'Already mounted'"
     else
-        debug "$ISO_NAME was not mounted "
+        debug "not unmounting $ISO_NAME, 'Not Mounted'"
     fi
 }
 #
