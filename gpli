@@ -20,8 +20,12 @@
 #  - gplinstall_beta_1.08.exe from  grandprixlegends.info
 # Description:
 #  - Creates wine prefix, mounts iso and runs the installer
-# Notes: 
-# on 'wsl' wine doesn't see the mounted drive even when successfully mounted
+# Notes:
+#  - on 'wsl' wine doesn't see the mounted drive even when successfully mounted
+# TODO:
+#  - setup prefix for vb6 dependencies
+#  - redo argument parsing, its very picky about switch order
+#  - ???
 #
 
 # this script version
@@ -83,7 +87,9 @@ error() {
 # debug
 #
 debug() {
-    echo -e "\e[33m$_filename/${FUNCNAME[1]}: $@\e[0m"
+    if [ ! -z "$DEBUG" ]; then
+        echo -e "\e[33m$_filename/${FUNCNAME[1]}: $@\e[0m"
+    fi
 }
 #
 # info
@@ -141,8 +147,11 @@ verify() {
     return 0
 }
 #
+# try find backing file for device
 # Args:
 #   $1 $ISO_DEVICE
+# Returns:
+#   string or error
 #
 userMountBackingFile() {
     local USER_MOUNT_BACKING_FILE=""
@@ -156,7 +165,7 @@ userMountBackingFile() {
 }
 UNMOUNT=0
 #
-# ???
+# mount ISO without sudo
 #
 userMount() {
     if [[ $NOUSERMOUNT -eq 1 ]]; then # debug
@@ -176,7 +185,7 @@ userMount() {
     fi
 }
 #
-# unmount user mounted ISO
+# unmount ISO without sudo
 #
 userUnmount() {
     if [[ $NOUSERMOUNT -eq 1 ]]; then
@@ -447,6 +456,7 @@ usage() {
     echo " NOMOUNT         'Do not try to mount ISO'"
     echo " NOUSERMOUNT     'Do not try to mount ISO in userspace'"
     echo " NOROOTMOUNT     'Do not try to mount ISO if requires root access"
+    echo " DEBUG           'show debug info'"
 }
 #
 if [[ $# -lt 1 ]]; then
