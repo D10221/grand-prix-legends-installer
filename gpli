@@ -51,11 +51,26 @@ _filename=$(basename $0)
 # use find?
 GPL_EXE="$WINEPREFIX/drive_c/Sierra/GPL/gpl.exe"
 GEM_EXE="$WINEPREFIX/drive_c/GPLSecrets/GEM+/GEMP2.exe"
-# windows subs for linux
-WSL=0
-if [ ! -z "$WSL_DISTRO_NAME" ] || [[ $(uname -r) =~ "-microsoft-" ]]; then
-    WSL=1
-fi
+# OSTYPE
+OS_LINUX='linux'
+OS_DARWIN='darwin'
+OS_WSL='wsl'
+OS=''
+case "$OSTYPE" in
+linux*)
+    OS=$OS_LINUX
+    if [ ! -z "$WSL_DISTRO_NAME" ] || [[ $(uname -r) =~ "-microsoft-" ]]; then
+        OS=$OS_WSL
+    fi
+    ;;
+darwin*)
+    OS=$OS_DARWIN
+    ;;
+*)
+    echo "OSTYPE $OSTYPE Not Implemented" >&2
+    exit 1
+    ;;
+esac
 # do mount iso unless '--nomount'
 MOUNT=1
 #
@@ -144,9 +159,6 @@ UNMOUNT=0
 # ???
 #
 userMount() {
-    if [[ $WSL -eq 1 ]]; then
-        return 1 #failed
-    fi
     # get the device backing file
     USER_MOUNT_BACKING_FILE="$(userMountBackingFile $ISO_DEVICE)"
     # already mounted?
@@ -164,9 +176,6 @@ userMount() {
 # unmount user mounted ISO
 #
 userUnmount() {
-    if [[ $WSL -eq 1 ]]; then
-        return 1 #failed
-    fi
     if [[ $UNMOUNT -eq 1 ]] && [ -f "$USER_MOUNT_BACKING_FILE" ] && [ $USER_MOUNT_BACKING_FILE == $ISO ]; then
         return udisksctl unmount -b $ISO_DEVICE
     fi
@@ -193,7 +202,7 @@ Mount() {
     # if not mounted
     if [ -z "$(mount | grep $ISO_NAME)"]; then
         info "Mounting '$ISO_NAME' into '$ISO_MOUNTING_POINT'"
-        if [[ $WSL -eq 1 ]]; then
+        if [ $OS == $OS_WSL ]; then
             # WSL
             if ! validWslDrive $WSLDRIVE; then
                 return 1 # failed
@@ -238,12 +247,13 @@ Unmount() {
 #
 tryMount() {
     if [[ $MOUNT -eq 1 ]]; then
-        if userMount; then # user mounted
-            mounted=1
+        if [ $OS == $OS_LINUX ] && userMount; then # user mounted
             debug "$ISO_NAME 'Mounted' by udisksctl"
             return 0
-        elif Mount; then # system mounted
-            mounted=1
+        elif [ $OS == $OS_DARWIN ] && hdiutil mount "$ISO"; then
+            UNMOUNT=1
+            return 0
+        elif [ $OS != $OS_DARWIN ] && Mount; then # system mounted
             debug "$ISO_NAME 'Mounted' by 'mount'"
             return 0
         else
@@ -262,21 +272,23 @@ tryMount() {
 tryUnmount() {
     if [[ $UNMOUNT -eq 1 ]]; then
         debug "unmounting $ISO_NAME"
-        if userUnmount; then
+        echo OS=$OS
+        if [ $OS == $OS_DARWIN ]; then
+            hdiutil unmount /Volumes/GPL 
+        elif [ $OS == $OS_LINUX ] && userUnmount; then
             debug "unmounted $ISO_NAME by 'udisksctl'"
+        elif Unmount; then
+            debug "$ISO_NAME 'unmounted' by 'unmount'"
         else
-            if Unmount; then
-                debug "$ISO_NAME 'unmounted' by 'unmount'"
-            else
-                error "Failed to unmount $ISO"
-            fi
+            error "Failed to unmount $ISO"
         fi
+
     fi
 }
 #
 # install on linux
 #
-linuxInstall() {
+Install() {
     # create dirs to store downloaded files and prefix
     if ! download $ISO $ISO_URL ||
         ! download $INSTALLER $INSTALLER_URL ||
@@ -310,7 +322,7 @@ linuxInstall() {
         fi
         if [[ $GPL_INSTALLED -eq 0 ]]; then
             debug "Installing GPL"
-            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" &>>"$INSTALLER_LOG"; then
+            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" >"$INSTALLER_LOG" 2>%1; then
                 GPL_INSTALLED=1
                 debug "installed GPL"
             else
@@ -328,7 +340,7 @@ linuxInstall() {
     fi
     if [[ $GPL_INSTALLED -eq 1 ]] && [[ "$GEM_INSTALLED" -eq 0 ]]; then
         debug "installing GEM"
-        if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" &>>"$GEM_LOG"; then
+        if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" >"$GEM_LOG" 2>%1; then
             debug "installed GEM?"
         else
             debug "failed to install GEM"
@@ -338,70 +350,6 @@ linuxInstall() {
     fi
     # tryUnmount
     tryUnmount
-}
-#
-#
-#
-darwinInstall() {
-    #
-    if ! download $ISO $ISO_URL ||
-        ! download $INSTALLER $INSTALLER_URL ||
-        ! download $GEM $GEM_URL; then
-        error "Download failed"
-        return 1
-    fi
-    # verify downloaded files
-    if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" ||
-        ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" ||
-        ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
-        debug verify failed
-        return 1
-    fi
-    # if there isn't wine ?
-    if [ ! -f "$WINE" ]; then
-        error "can't find wine, get wine on the \$PATH and try again"
-        return 1
-    fi
-    # Mounting the iso
-    mounted=1
-    if hdiutil mount $ISO; then
-        UNMOUNT=1
-        mounted=0
-    fi
-    if ! $mounted; then
-        error "TODO: Can't mount $ISO_NAME, is it mounted already?"
-    fi
-    debug "TODO: You may not find the CD as a wine drive, sorry"
-    # run
-    installGPL
-    # unmount iso
-    if $mounted; then
-        error "TODO: Can't unmount $ISO_NAME"
-        return 1
-    fi
-}
-#
-# ???
-#
-mainInstall() {
-    case $OSTYPE in
-    linux*)
-        if ! linuxInstall; then
-            error "Installation did not complete successfully"
-            return 1
-        fi
-        ;;
-    darwin*)
-        if ! darwinInstall; then
-            error "Installation did not complete successfully"
-            return 1
-        fi
-        ;;
-    *)
-        error "Installation for OS '$OSTYPE' is not implemented."
-        return 1
-        ;;
-    esac
 }
 #
 # Uninstall GPL and remove prefix
@@ -543,7 +491,7 @@ done
 # launch verbs
 case $1 in
 install)
-    if mainInstall; then
+    if Install; then
         debug "done"
     else
         error "done with error"
