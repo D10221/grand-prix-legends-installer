@@ -74,7 +74,7 @@ debug() {
 #   $1  'file'
 #   $2  'url'
 #
-download() {    
+download() {
     if [ ! -f "$1" ]; then
         mkdir -p "$(dirname $1)"
         return $(wget $2 -O "$1")
@@ -242,46 +242,48 @@ linuxInstall() {
     fi
     # Mounting the iso
     local mounted=0
-    udisksctlMount
-    x=$?
-    case $x in
-    1)
-        # error
-        mounted=0
-        debug "$ISO_NAME Not Mounted by udisksctl"
-        ;;
-    2)
-        # error: already mounted
-        mounted=2
-        debug "$ISO_NAME Already Mounted by udisksctl"
-        ;;
-    *)
-        # success
+    if udisksctlMount; then
         mounted=1
-        debug "$ISO_NAME Mounted by udisksctl"
-        ;;
-    esac
-    # Couldn't mount in user space, try with 'mount'
-    if [[ $mounted -eq 0 ]]; then
-        rootMount
-        x=$?
-        case $x in
+        debug "$ISO_NAME 'Mounted' by udisksctl"
+    else
+        case "$?" in
         1)
             # error
             mounted=0
-            debug "$ISO_NAME Not Mounted by 'mount'"
+            debug "$ISO_NAME 'Not Mounted' by udisksctl"
             ;;
         2)
             # error: already mounted
             mounted=2
-            debug "$ISO_NAME Already Mounted by 'mount'"
+            debug "$ISO_NAME 'Already Mounted' by udisksctl"
             ;;
         *)
-            # success
-            mounted=1
-            debug "$ISO_NAME mounted by 'mount'"
+            error "'Unnkown' error by udisksctl"
             ;;
         esac
+    fi
+    # Couldn't mount in user space, try with 'mount'
+    if [[ $mounted -eq 0 ]]; then
+        if rootMount; then
+            mounted=1
+            debug "$ISO_NAME 'Mounted' by 'mount'"
+        else
+            case "$?" in
+            1)
+                # error
+                mounted=0
+                debug "$ISO_NAME 'Not Mounted' by 'mount'"
+                ;;
+            2)
+                # error: already mounted
+                mounted=2
+                debug "$ISO_NAME 'Already Mounted' by 'mount'"
+                ;;
+            *)
+                debug "'Unkown' error by 'mount'"
+                ;;
+            esac
+        fi
     fi
     #
     if [[ $mounted -eq 0 ]]; then
