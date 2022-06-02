@@ -57,16 +57,23 @@ if [ ! -z "$WSL_DISTRO_NAME" ] || [[ $(uname -r) =~ "-microsoft-" ]]; then
     WSL=1
 fi
 #
-# error: echo to stderr
+# error echoes to stderr
 #
 error() {
-    echo -e "\e[31m$_filename: $@\e[0m"
+    echo -e "\e[31m$_filename: $@\e[0m" >&2
 }
 #
-# Debug: echo to sdtout
+# debug
 #
 debug() {
     echo -e "\e[33m$_filename/${FUNCNAME[1]}: $@\e[0m"
+}
+#
+# info
+#
+info()
+{
+    echo -e "\e[36m$_filename/${FUNCNAME[1]}: $@\e[0m"
 }
 #
 #
@@ -164,18 +171,23 @@ udisksctlUnmount() {
     fi
 }
 #
+# SUDO
+#
+Sudo() {
+    if ! [[ "$EUID" -eq 0 ]]; then
+        echo 'sudo'
+    else
+        echo ''
+    fi
+}
+#
 # mount ISO , needs root
 #
-rootMount() {
+Mount() {
     # if not mounted
+    local SUDO=$(Sudo)
     if [ -z "$(mount | grep $ISO_NAME)"]; then
-        SUDO=''
-        if (($EUID != 0)); then
-            SUDO='sudo'
-        fi
-        if ! [ -z $SUDO ]; then
-            debug "need root access to mount '$ISO_NAME'"
-        fi
+        info "Mounting '$ISO_NAME' into '$ISO_MOUNTING_POINT'"
         if ! $SUDO mkdir -p "$ISO_MOUNTING_POINT"; then
             return 1
         fi
@@ -204,17 +216,13 @@ rootMount() {
 # unmount ISO_MOUNTING_POINT , needs root
 #
 rootUnmount() {
-    SUDO=''
-    if (($EUID != 0)); then
-        SUDO='sudo'
-    fi
     if ! [ -z "$(mount | grep $ISO_NAME)"]; then # if mounted
-        if ! $SUDO unmount $ISO_MOUNTING_POINT; then
-            error "$SUDO unmount $ISO_MOUNTING_POINT failed"
+        if ! $(Sudo) unmount $ISO_MOUNTING_POINT; then
+            error "$(Sudo) unmount $ISO_MOUNTING_POINT failed"
             return 1 # fail
         fi
     else
-        return 2 #not mounted by $SUDO mount
+        return 2 #not mounted by $(Sudo) mount
     fi
 }
 #
@@ -264,7 +272,7 @@ linuxInstall() {
     fi
     # Couldn't mount in user space, try with 'mount'
     if [[ $mounted -eq 0 ]]; then
-        if rootMount; then
+        if Mount; then
             mounted=1
             debug "$ISO_NAME 'Mounted' by 'mount'"
         else
@@ -452,14 +460,14 @@ uninstall() {
 # usage
 #
 usage() {
-    debug "Grand Prix Legends Wine Installer v$VERSION"
-    debug "usage: '$_filename [verb] [options]'"
-    debug "verbs: "
-    debug "  install        'run GPL installers'"
-    debug "  uninstall      'remove GPL and Wine Prefix'"
-    debug "options:"
-    debug "  -h --help      'Show this'"
-    debug "  -v --version   'Show '$_filename' version'"
+    echo "Grand Prix Legends Wine Installer v$VERSION"
+    echo "usage: '$_filename [verb] [options]'"
+    echo "verbs: "
+    echo "  install        'run GPL installers'"
+    echo "  uninstall      'remove GPL and Wine Prefix'"
+    echo "options:"
+    echo "  -h --help      'Show this'"
+    echo "  -v --version   'Show '$_filename' version'"
 }
 #
 if [[ $# -lt 1 ]]; then
