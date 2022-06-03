@@ -28,7 +28,7 @@ Creates wine prefix, mounts iso, downloads and runs the installer
    - gplinstall_beta_1.08.exe from  grandprixlegends.info
 
 ## Notes:
-  - on 'wsl' you will need get display working
+  - on 'wsl' you will need get 'X' working, see [gwsl](https://opticos.github.io/gwsl/)
   - on 'wsl' wine doesn't see the mounted drive even when successfully mounted
 
 ### TODO:
