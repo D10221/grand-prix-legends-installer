@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # # Grand Prix Legends installer <small>(wip)</small>
-# Grand Prix Legends installer for Wine
+# Grand Prix Legends installer for wine
 
 # Creates wine prefix, mounts iso, downloads and runs the installer
 
@@ -152,7 +152,7 @@ download() {
 #   $3  'shasum'
 #
 verify() {
-    if [[ $2 -eq 0 ]] && [[ $3 -eq 0 ]]; then
+    if [ -z "$2" ] && [ -z "$3" ]; then
         return 0 # disabled
     fi
     local actual=""
@@ -425,14 +425,7 @@ Install() {
 
         if [[ $mounted -eq 1 ]]; then
             debug "Installing GPL"
-
-            # if there isn't wine ?
-            if [ ! -f "$WINE" ]; then
-                error "can't find wine, get wine on the \$PATH and try again"
-                return 1
-            fi
-
-            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" "$WINE" "$INSTALLER" >"$INSTALLER_LOG" 2>&1; then
+            if WineRunExe "$INSTALLER"; then
                 GPL_INSTALLED=1
                 debug "installed GPL"
             else
@@ -443,7 +436,7 @@ Install() {
         fi
         # tryUnmount ISO
         tryUnmount
-        else
+    else
         info "GPL Installed"
     fi
 
@@ -461,21 +454,15 @@ Install() {
             debug "installing GEM"
             # get GEM installer  download if not in cache
             if get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
-                # if there isn't wine ?
-                if [ ! -f "$WINE" ]; then
-                    error "can't find wine, get wine on the \$PATH and try again"
-                    return 1
-                fi
-                # run wine command, save log in $HOME/{exename}.log
-                if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" >"$GEM_LOG" 2>&1; then
+                if WineRunExe "$GEM"; then
                     GEM_INSTALLED=1
                     debug "installed GEM?"
                 else
                     debug "failed to install GEM"
                 fi
             fi
-            else
-            info "GEM installed"    
+        else
+            info "GEM installed"
         fi
     else
         error "Can't install GEM"
@@ -483,24 +470,55 @@ Install() {
     VB_RUNTIME_INSTALLED=0
     # TODO if VB_RUNTIME_INSTALLED -eq 1
     if [[ $GEM_INSTALLED -eq 1 ]]; then
-        if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL" 0 0; then
-            if [ ! -f "$(which unzip)" ]; then
-                error "Can't find 'unzip'"            
-            elif unzip -oq $VB_RUNTIME_ZIP -d "$CACHE"; then
+        if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL"; then
+            if Unzip "$VB_RUNTIME_ZIP"; then
                 debug "installing VB Runtime"
-                if [ ! -f "$WINE" ]; then
-                    error "can't find wine, get wine on the \$PATH and try again"
-                    return 1
-                fi
-                local LOGFILE=~/"$(basename "$VB_RUNTIME_EXE").log"
-                if WINEPREFIX="$WINEPREFIX" wine "$VB_RUNTIME_EXE" >"$LOGFILE" 2>&1; then
+                if WineRunExe "$VB_RUNTIME_EXE"; then
                     VB_RUNTIME_INSTALLED=1
                     info "VB Runtime Installed"
-                    else
+                else
                     error "Can't install VB Runtime, see $LOGFILE"
                 fi
             fi
         fi
+    fi
+}
+#
+# Args:
+#   $1  'zip file'
+#
+Unzip() {
+    if [ ! -f "$(which unzip)" ]; then
+        error "Can't find 'unzip'"
+    fi
+    debug "Unzipping '$1'"
+    unzip -oq "$1" -d "$CACHE"
+    return $?
+}
+#
+# Run exe on WINEPREFIX, log to ~/<exe-name>.log
+# Args:
+#   $1 file
+#
+WineRunExe() {
+    if [ ! -f "$WINE" ]; then
+        error "can't find wine, get wine on the \$PATH and try again"
+        return 1
+    fi
+    if ! mkdir -p "$WINEPREFIX" || ! WINEPREFIX="$WINEPREFIX" $WINE "$1" >~/"$(basename "$1").log" 2>&1; then
+        return 1
+    fi
+}
+#
+#Run cmd on WINEPREFIX env
+#
+Winenv() {
+    if [ ! -f "$WINE" ]; then
+        error "can't find wine, get wine on the \$PATH and try again"
+        return 1
+    fi
+    if ! mkdir -p "$WINEPREFIX" || ! WINEPREFIX="$WINEPREFIX" $@ >~/"$(basename "$1").log" 2>&1; then
+        return 1
     fi
 }
 #
@@ -575,11 +593,11 @@ optionValue() {
 # show usage
 #
 usage() {
-    echo "Grand Prix Legends Wine Installer v$VERSION"
+    echo "Grand Prix Legends wine Installer v$VERSION"
     echo "Usage: '$_filename [verb] [options]'"
     echo "Verbs: "
     echo "  install             'run GPL installers'"
-    echo "  uninstall [options?] 'remove GPL,GEM and Wine Prefix'"
+    echo "  uninstall [options?] 'remove GPL,GEM and wine Prefix'"
     echo "      options: "
     echo "          'gpl'   remove 'c:\Sierra\gpl'"
     echo "          'geml'  remove 'c:\Sierra\gpl'"
