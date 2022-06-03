@@ -519,15 +519,15 @@ optionValue() {
 #
 usage() {
     echo "Grand Prix Legends Wine Installer v$VERSION"
-    echo "usage: '$_filename [verb] [options]'"
-    echo "verbs: "
+    echo "Usage: '$_filename [verb] [options]'"
+    echo "Verbs: "
     echo "  install             'run GPL installers'"
     echo "  uninstall [options?] 'remove GPL,GEM and Wine Prefix'"
     echo "      options: "
     echo "          'gpl'   remove 'c:\Sierra\gpl'"
     echo "          'geml'  remove 'c:\Sierra\gpl'"
     echo "          ''      remove 'prefix' (default)"
-    echo "options:"
+    echo "Options:"
     echo "  -h --help      'Show this'"
     echo "  -v --version   'Show '$_filename' version'"
     echo "  --nomount      'Do not try to mount ISO'"
@@ -538,13 +538,20 @@ usage() {
         echo "      <drive>: [az-AZ]"
         echo "      example '--wsldrive=d'"
     fi
-    echo "vars:"
+    echo "Vars:"
     echo " NOMOUNT         'Do not try to mount ISO'"
     echo " NOUSERMOUNT     'Do not try to mount ISO in userspace'"
     echo " NOROOTMOUNT     'Do not try to mount ISO if requires root access"
     echo " DEBUG           'show debug info'"
+    echo "                  example '\$ DEBUG=1 ./gpli.local install'"
+    if [ $OS == $OS_WSL ]; then
+    echo " WSLDRIVE        'show debug info'"
+    echo "    desc:        'drive letter to mount in wsl environment'"
+    echo "                 'required to install GPL on WSL'"
+    echo "      <drive>: [az-AZ]"
+    echo "                  example '\$ WSLDRIVE=d ./gpli.local install'"
+    fi
     echo "examples: "
-    echo "$ DEBUG=1 NOMOUNT=1 NOROOTMOUNT=1 NOUSERMOUNT=1 ./gpli.local install"
 }
 #
 if [[ $# -lt 1 ]]; then
