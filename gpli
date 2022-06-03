@@ -447,27 +447,58 @@ Install() {
     tryUnmount
 }
 #
-# Uninstall GPL and remove prefix
+# Args:
+#   $1  'label'
+#   $2  'target'
 #
-uninstall() {
-    warn "Remove prefix '$WINEPREFIX'"
+remove() {
+    warn "Remove '$1' '$2'"
     read -p "Cannot be undone (y/n)? " u
     case $u in
     y)
-        if rm -rf $GPL_HOME; then
+        if rm -rf "$2"; then
             return 0
         else
             return 1
         fi
         ;;
     n)
-        info "Uninstall cancelled."
+        info "Cancelled."
         ;;
     *)
-        error "Unknown option '$u', Uninstall cancelled."
+        error "Unknown option '$u', Cancelled!"
         return 1
         ;;
     esac
+}
+#
+# Uninstall GPL and remove prefix
+# Args:
+#   '$@' [gpl,gem]
+#
+uninstall() {
+    if [[ $# -lt 1 ]]; then
+        remove 'prefix' "$WINEPREFIX"
+    else
+        for a in $@; do
+            case "$a" in
+            gpl)
+                local DIR=$(dirname $GPL_EXE)
+                remove 'GPL' "$DIR"
+                ;;
+
+            gem)
+                local DIR=$(dirname $GEM_EXE)
+                remove 'GPL' "$DIR"
+                ;;
+            *)
+                error "Can't remove '$a'"
+                return 1
+                ;;
+            esac
+        done
+    fi
+
 }
 #
 # Args:
@@ -490,8 +521,12 @@ usage() {
     echo "Grand Prix Legends Wine Installer v$VERSION"
     echo "usage: '$_filename [verb] [options]'"
     echo "verbs: "
-    echo "  install        'run GPL installers'"
-    echo "  uninstall      'remove GPL and Wine Prefix'"
+    echo "  install             'run GPL installers'"
+    echo "  uninstall [options?] 'remove GPL,GEM and Wine Prefix'"
+    echo "      options: "
+    echo "          'gpl'   remove 'c:\Sierra\gpl'"
+    echo "          'geml'  remove 'c:\Sierra\gpl'"
+    echo "          ''      remove 'prefix' (default)"
     echo "options:"
     echo "  -h --help      'Show this'"
     echo "  -v --version   'Show '$_filename' version'"
@@ -596,7 +631,8 @@ install)
     fi
     ;;
 uninstall)
-    uninstall
+    shift
+    uninstall "$@"
     ;;
 *)
     error "Unkown verb '$1'"
