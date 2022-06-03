@@ -34,7 +34,7 @@ Creates wine prefix, mounts iso, downloads and runs the installer
 ### TODO:
   - download dependencies and setup prefix for vb6 dependencies
   - redo argument parsing, its very picky about switch order
-  - don't download until required
   - switches: NODOWNLOAD, NOCHECKSUM
   - uninstall doesn't uninstall but nukes the wine prefix
   - switch: --info, display installation details
+  - switch: --reinstall or verb 'reinstall'

@@ -100,14 +100,20 @@ error() {
 #
 debug() {
     if [ ! -z "$DEBUG" ]; then
-        echo -e "\e[33m$_filename/${FUNCNAME[1]}: $@\e[0m"
+        echo -e "\e[35m$_filename/${FUNCNAME[1]}: $@\e[0m"
     fi
+}
+#
+# warn
+#
+warn() {
+    echo -e "\e[33m$_filename/${FUNCNAME[1]}: $@\e[0m"
 }
 #
 # info
 #
 info() {
-    echo -e "\e[36m$_filename/${FUNCNAME[1]}: $@\e[0m"
+    echo -e "\e[32m$_filename/${FUNCNAME[1]}: $@\e[0m"
 }
 #
 # SUDO
@@ -120,9 +126,10 @@ Sudo() {
     fi
 }
 #
-#
+# Download url
+# creates target directory
 # args:
-#   $1  'file'
+#   $1  'file' local name, full path
 #   $2  'url'
 #
 download() {
@@ -151,8 +158,8 @@ verify() {
         return 1
     fi
     if [ "$actual" != "$expected" ]; then
-        # debug "Expected $expected"
-        # debug "Actual   $actual"
+        debug "Expected $expected"
+        debug "Actual   $actual"
         error "Bad hash: $(basename $1)"
         return 1
     fi
@@ -279,6 +286,7 @@ tryMount() {
         # --nomount?
         return 0
     fi
+    debug "Mounting '$ISO_NAME'"
     # by os
     case $OS in
     $OS_DARWIN)
@@ -337,60 +345,96 @@ tryUnmount() {
     fi
 }
 #
-# install on linux
+# Download and verify
+# Args:
+#   $1  'file' local name, full path
+#   $2  'url'
+#   $3  'md5'
+#   $4  'sha'
 #
-Install() {
-    # create dirs to store downloaded files and prefix
-    if ! download $ISO $ISO_URL ||
-        ! download $INSTALLER $INSTALLER_URL ||
-        ! download $GEM $GEM_URL; then
-        error "Download failed"
+get() {
+    if ! download $1 $2; then
+        error "failed to download '$(basename $1)' from '$2'"
         return 1
     fi
     # verify
-    if ! verify $ISO "$ISO_MD5" "$ISO_SHASUM" ||
-        ! verify $INSTALLER "$INSTALLER_MD5" "$INSTALLER_SHASUM" ||
-        ! verify $GEM "$GEM_MD5" "$GEM_SHASUM"; then
-        debug "verify failed"
+    if ! verify $1 "$3" "$4"; then
+        debug "failed to verify '$(basename $1)'"
         return 1
     fi
-    # if there isn't wine ?
-    if [ ! -f "$WINE" ]; then
-        error "can't find wine, get wine on the \$PATH and try again"
-        return 1
-    fi
-    # tryMount
-    local mounted=0
-    if tryMount; then
-        mounted=1
-    fi
+}
+#
+# install on linux
+#
+Install() {
+
     # installing GPL
     local GPL_INSTALLED=0
-    if [[ $mounted -eq 1 ]]; then
-        if [ -f $GPL_EXE ]; then
-            debug "$(basename $GPL_EXE) installed at $(dirname $GPL_EXE)"
-            GPL_INSTALLED=1
+    if [ -f $GPL_EXE ]; then
+        debug "$(basename $GPL_EXE) found at $(dirname $GPL_EXE)"
+        GPL_INSTALLED=1
+    fi
+
+    if [[ $GPL_INSTALLED -eq 0 ]]; then
+
+        # get GPL ISO installer, download if not in cache
+        if ! get "$ISO" "$ISO_URL" "$ISO_MD5" "$ISO_SHASUM"; then
+            return 1
         fi
-        if [[ $GPL_INSTALLED -eq 0 ]]; then
+        # get GPL installer, download if not in cache
+        if ! get "$INSTALLER" "$INSTALLER_URL" "$INSTALLER_MD5" "$INSTALLER_SHASUM"; then
+            return 1
+        fi
+
+        # try mount ISO, required by GPL installer
+        local mounted=0
+        if tryMount; then
+            mounted=1
+        fi
+
+        if [[ $mounted -eq 1 ]]; then
             debug "Installing GPL"
-            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$INSTALLER" >"$INSTALLER_LOG" 2>&1; then
+
+            # if there isn't wine ?
+            if [ ! -f "$WINE" ]; then
+                error "can't find wine, get wine on the \$PATH and try again"
+                return 1
+            fi
+
+            if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" "$WINE" "$INSTALLER" >"$INSTALLER_LOG" 2>&1; then
                 GPL_INSTALLED=1
                 debug "installed GPL"
             else
                 error "Failed to install GPL"
             fi
+        else
+            error "Can't install GPL"
         fi
-    else
-        error "Can't install GPL"
+
     fi
+
     # installing GEM
     local GEM_INSTALLED=0
     if [ -f $GEM_EXE ]; then
-        debug "$(basename $GEM) installed at $(dirname $GEM)"
+        debug "$(basename $GEM) found at $(dirname $GEM)"
         GEM_INSTALLED=1
     fi
+
+    # can't install GEM if there is no 'c:\Sierra\GPL\gpl.exe'
     if [[ $GPL_INSTALLED -eq 1 ]] && [[ "$GEM_INSTALLED" -eq 0 ]]; then
-        debug "installing GEM"
+        debug "installing GEM, GPL_INSTALLED=$GPL_INSTALLED, GPL_INSTALLED=$GPL_INSTALLED"
+
+        # get GEM installer  download if not in cache
+        if ! get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
+            return 1
+        fi
+
+        # if there isn't wine ?
+        if [ ! -f "$WINE" ]; then
+            error "can't find wine, get wine on the \$PATH and try again"
+            return 1
+        fi
+
         if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" >"$GEM_LOG" 2>&1; then
             debug "installed GEM?"
         else
@@ -406,14 +450,8 @@ Install() {
 # Uninstall GPL and remove prefix
 #
 uninstall() {
-    if $YES; then
-        if rm -rf $GPL_HOME; then
-            return 0
-        else
-            return 1
-        fi
-    fi
-    read -p "Uninstall GPL and remove prefix (y/n)? " u
+    warn "Remove prefix '$WINEPREFIX'"
+    read -p "Cannot be undone (y/n)? " u
     case $u in
     y)
         if rm -rf $GPL_HOME; then
@@ -423,7 +461,7 @@ uninstall() {
         fi
         ;;
     n)
-        error "Uninstall cancelled."
+        info "Uninstall cancelled."
         ;;
     *)
         error "Unknown option '$u', Uninstall cancelled."
