@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Grand Prix Legends launcher
+GPL_HOME=$HOME/.local/share/grand-prix-legends
+WINEPREFIX="$GPL_HOME/pfx"
+WINE="$(which wine)"
+if ! [ -f "$WINE" ]; then
+    echo "Can't find wine"
+    exit 1
+fi
+WINEPREFIX=$WINEPREFIX $WINE $@
