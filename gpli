@@ -228,6 +228,7 @@ validWslDrive() {
         return 1 # failed
     fi
 }
+WINE_DRIVE=${WINE_DRIVE:-"d"}
 #
 # mount ISO with 'mount' , needs root
 #
@@ -239,19 +240,26 @@ Mount() {
     if [ -z "$(mount | grep $ISO_NAME)"]; then
         info "Mounting '$ISO_NAME' into '$ISO_MOUNTING_POINT'"
         if [ $OS == $OS_WSL ]; then
-            # WSL
+            # Mounting in WSL is different
             if ! validWslDrive $WSLDRIVE; then
+                warn "WSLDRIVE '$WSLDRIVE' is not valid, using 'D:'"
                 return 1 # failed
+            fi
+            if ! validWslDrive $WINE_DRIVE; then
+                warn "WINE_DRIVE '$WINE_DRIVE' is not valid, using '$WSLDRIVE' from WSLDRIVE"
+                WINE_DRIVE=WSLDRIVE
             fi
             if "$(Sudo)" mkdir -p "$ISO_MOUNTING_POINT" &&
                 "$(Sudo)" mount -t drvfs "$WSLDRIVE:" "$ISO_MOUNTING_POINT"; then
-                # OK
-                UNMOUNT=1 # flag unmount
+                # create simlink in pfx/dosdevices/d:
+                if ln -s "$ISO_MOUNTING_POINT" "$WINEPREFIX/dosdevices/$WINE_DRIVE:"; then # or wine doesn't see it
+                    UNMOUNT=1                                           # OK, flag unmount
+                fi
             else
                 return 1 # failed
             fi
         else
-            #linux
+            # mounting on linux
             if "$(Sudo)" mkdir -p "$ISO_MOUNTING_POINT" &&
                 "$(Sudo)" mount -o ro,loop "$ISO" "$ISO_MOUNTING_POINT"; then
                 #OK
@@ -297,10 +305,12 @@ tryMount() {
         fi
         ;;
     $OS_LINUX)
+        # try to mount without priviledge
         if userMount; then
             debug "$ISO_NAME '$OS' 'Mounted' by 'userMount'"
             return 0
         fi
+        # mount with sudo
         if Mount; then
             debug "$ISO_NAME '$OS' 'Mounted' by 'Mount'"
             return 0
@@ -335,12 +345,24 @@ tryUnmount() {
         debug "unmounting $ISO_NAME"
         if [ $OS == $OS_DARWIN ]; then
             hdiutil unmount /Volumes/GPL
-        elif [ $OS == $OS_LINUX ] && userUnmount; then
-            debug "unmounted $ISO_NAME by 'udisksctl'"
-        elif Unmount; then
-            debug "$ISO_NAME 'unmounted' by 'unmount'"
+            # debug "'$OS' '$ISO_NAME' unmounted by 'hdiutil'"
+        elif [ $OS == $OS_LINUX ]; then
+            if ! userUnmount; then
+                if ! Unmount; then
+                    return 1 # failed
+                fi
+            fi
+            debug "'$OS' '$ISO_NAME' unmounted by 'udisksctl'"
+        elif [ $OS == $OS_WSL ]; then
+            if ! Unmount; then
+                if ! rm "$WINE_DRIVE_PATH"; then
+                    warn "Failed to remove '$WINE_DRIVE_PATH'"
+                    return 1 # failed
+                fi
+            fi
+            debug "'$OS' '$ISO_NAME' unmounted by 'unmount'"
         else
-            error "Failed to unmount $ISO"
+            error "Unmounting $ISO on $OS is not implemented"
         fi
     fi
 }
@@ -422,19 +444,17 @@ Install() {
 
     # can't install GEM if there is no 'c:\Sierra\GPL\gpl.exe'
     if [[ $GPL_INSTALLED -eq 1 ]] && [[ "$GEM_INSTALLED" -eq 0 ]]; then
-        debug "installing GEM, GPL_INSTALLED=$GPL_INSTALLED, GPL_INSTALLED=$GPL_INSTALLED"
-
+        debug "installing GEM"
         # get GEM installer  download if not in cache
         if ! get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
             return 1
         fi
-
         # if there isn't wine ?
         if [ ! -f "$WINE" ]; then
             error "can't find wine, get wine on the \$PATH and try again"
             return 1
         fi
-
+        # run wine command, save log in $HOME/{exename}.log
         if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" >"$GEM_LOG" 2>&1; then
             debug "installed GEM?"
         else
@@ -545,11 +565,11 @@ usage() {
     echo " DEBUG           'show debug info'"
     echo "                  example '\$ DEBUG=1 ./gpli.local install'"
     if [ $OS == $OS_WSL ]; then
-    echo " WSLDRIVE        'show debug info'"
-    echo "    desc:        'drive letter to mount in wsl environment'"
-    echo "                 'required to install GPL on WSL'"
-    echo "      <drive>: [az-AZ]"
-    echo "                  example '\$ WSLDRIVE=d ./gpli.local install'"
+        echo " WSLDRIVE        'show debug info'"
+        echo "    desc:        'drive letter to mount in wsl environment'"
+        echo "                 'required to install GPL on WSL'"
+        echo "      <drive>: [az-AZ]"
+        echo "                  example '\$ WSLDRIVE=d ./gpli.local install'"
     fi
     echo "examples: "
 }
