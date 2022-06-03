@@ -271,7 +271,8 @@ Unmount() {
     fi
 }
 #
-#
+# try un mount iso if it was mounted
+# by $OS
 #
 tryMount() {
     if [[ $NOMOUNT -eq 1 ]]; then
@@ -318,7 +319,7 @@ tryMount() {
     return 1
 }
 #
-# try un ount iso iuf it was mounted
+# try un unmount iso if it was mounted
 # by $OS
 #
 tryUnmount() {
@@ -445,7 +446,7 @@ optionValue() {
     fi
 }
 #
-# usage
+# show usage
 #
 usage() {
     echo "Grand Prix Legends Wine Installer v$VERSION"
