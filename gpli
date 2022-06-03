@@ -510,14 +510,14 @@ WineRunExe() {
     fi
 }
 #
-#Run cmd on WINEPREFIX env
+# Run cmd on WINEPREFIX env
 #
-Winenv() {
+withPrefix() {
     if [ ! -f "$WINE" ]; then
         error "can't find wine, get wine on the \$PATH and try again"
         return 1
     fi
-    if ! mkdir -p "$WINEPREFIX" || ! WINEPREFIX="$WINEPREFIX" $@ >~/"$(basename "$1").log" 2>&1; then
+    if ! mkdir -p "$WINEPREFIX" || ! WINEPREFIX="$WINEPREFIX" $@; then
         return 1
     fi
 }
@@ -602,7 +602,12 @@ usage() {
     echo "          'gpl'   remove 'c:\Sierra\gpl'"
     echo "          'geml'  remove 'c:\Sierra\gpl'"
     echo "          ''      remove 'prefix' (default)"
-    echo "Options:"
+    echo "  run                   \"run something in gpl's WINEPREFIX\""
+    echo "      example:    '\$$_filename run wine winecfg'"
+    echo "  wine                  \"run wine 'something' gpl's WINEPREFIX\""
+    echo "      example:    '\$$_filename wine winecfg'"
+    echo ""
+    echo "Options:"    
     echo "  -h --help      'Show this'"
     echo "  -v --version   'Show '$_filename' version'"
     echo "  --nomount      'Do not try to mount ISO'"
@@ -613,6 +618,7 @@ usage() {
         echo "      <drive>: [az-AZ]"
         echo "      example '--wsldrive=d'"
     fi
+    echo ""
     echo "Vars:"
     echo " NOMOUNT         'Do not try to mount ISO'"
     echo " NOUSERMOUNT     'Do not try to mount ISO in userspace'"
@@ -625,8 +631,7 @@ usage() {
         echo "                 'required to install GPL on WSL'"
         echo "      <drive>: [az-AZ]"
         echo "                  example '\$ WSLDRIVE=d ./gpli.local install'"
-    fi
-    echo "examples: "
+    fi    
 }
 #
 if [[ $# -lt 1 ]]; then
@@ -716,8 +721,16 @@ uninstall)
     shift
     uninstall "$@"
     ;;
+run)
+    shift
+    withPrefix $@
+    ;;
+wine)
+    shift
+    withPrefix "$WINE" $@
+    ;;    
 *)
-    error "Unkown verb '$1'"
+    error "Unkown verb:'$1'"
     exit 1
     ;;
 
