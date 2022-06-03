@@ -148,15 +148,15 @@ download() {
 #
 # Args:
 #   $1  'file'
-#   $2  'md5sum' set to 
+#   $2  'md5sum' set to
 #   $3  'shasum'
 #
 verify() {
-    if [[ $2 -eq 0 ]] && [[ $3 -eq 0 ]]; then 
+    if [[ $2 -eq 0 ]] && [[ $3 -eq 0 ]]; then
         return 0 # disabled
     fi
     local actual=""
-    if  [ ! -z "$(which shasum)" ]; then
+    if [ ! -z "$(which shasum)" ]; then
         actual="$(shasum $1)"
         expected=$3
     elif [ ! -z "$(which md5sum)" ]; then
@@ -387,7 +387,7 @@ get() {
     if ! download $1 $2; then
         error "failed to download '$(basename $1)' from '$2'"
         return 1
-    fi    
+    fi
     # verify
     if ! verify $1 "$3" "$4"; then
         debug "failed to verify '$(basename $1)'"
@@ -443,6 +443,8 @@ Install() {
         fi
         # tryUnmount ISO
         tryUnmount
+        else
+        info "GPL Installed"
     fi
 
     # installing GEM
@@ -453,23 +455,27 @@ Install() {
     fi
 
     # can't install GEM if there is no 'c:\Sierra\GPL\gpl.exe'
-    if [[ $GPL_INSTALLED -eq 1 ]] && [[ "$GEM_INSTALLED" -eq 0 ]]; then
-        debug "installing GEM"
-        # get GEM installer  download if not in cache
-        if ! get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
-            return 1
-        fi
-        # if there isn't wine ?
-        if [ ! -f "$WINE" ]; then
-            error "can't find wine, get wine on the \$PATH and try again"
-            return 1
-        fi
-        # run wine command, save log in $HOME/{exename}.log
-        if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" >"$GEM_LOG" 2>&1; then
-            GEM_INSTALLED=1
-            debug "installed GEM?"
-        else
-            debug "failed to install GEM"
+    if [[ $GPL_INSTALLED -eq 1 ]]; then
+        if [[ "$GEM_INSTALLED" -eq 0 ]]; then
+
+            debug "installing GEM"
+            # get GEM installer  download if not in cache
+            if get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
+                # if there isn't wine ?
+                if [ ! -f "$WINE" ]; then
+                    error "can't find wine, get wine on the \$PATH and try again"
+                    return 1
+                fi
+                # run wine command, save log in $HOME/{exename}.log
+                if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" >"$GEM_LOG" 2>&1; then
+                    GEM_INSTALLED=1
+                    debug "installed GEM?"
+                else
+                    debug "failed to install GEM"
+                fi
+            fi
+            else
+            info "GEM installed"    
         fi
     else
         error "Can't install GEM"
@@ -477,15 +483,24 @@ Install() {
     VB_RUNTIME_INSTALLED=0
     # TODO if VB_RUNTIME_INSTALLED -eq 1
     if [[ $GEM_INSTALLED -eq 1 ]]; then
-        if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL" 0 0 ; then
-            if unzip -oq $VB_RUNTIME_ZIP; then
+        if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL" 0 0; then
+            if [ ! -f "$(which unzip)" ]; then
+                error "Can't find 'unzip'"            
+            elif unzip -oq $VB_RUNTIME_ZIP -d "$CACHE"; then
                 debug "installing VB Runtime"
-                if WINEPREFIX="$WINEPREFIX" wine "$VB_RUNTIME_EXE" >"$(basename "$VB_RUNTIME_EXE").log" 2>&1; then
+                if [ ! -f "$WINE" ]; then
+                    error "can't find wine, get wine on the \$PATH and try again"
+                    return 1
+                fi
+                local LOGFILE=~/"$(basename "$VB_RUNTIME_EXE").log"
+                if WINEPREFIX="$WINEPREFIX" wine "$VB_RUNTIME_EXE" >"$LOGFILE" 2>&1; then
                     VB_RUNTIME_INSTALLED=1
-                    debug "Installed VB Runtime"
+                    info "VB Runtime Installed"
+                    else
+                    error "Can't install VB Runtime, see $LOGFILE"
                 fi
             fi
-        fi        
+        fi
     fi
 }
 #
