@@ -69,6 +69,11 @@ _filename=$(basename $0)
 # use find?
 GPL_EXE="$WINEPREFIX/drive_c/Sierra/GPL/gpl.exe"
 GEM_EXE="$WINEPREFIX/drive_c/GPLSecrets/GEM+/GEMP2.exe"
+# vb
+# VB Community Runtime 1.00
+VB_RUNTIME_URL='https://www.vb-paradise.de/index.php/Attachment/27536-vbcrt-zip/?s=a4f2f3891cbdcc314f7a2a2dd5b5338e22d42441'
+VB_RUNTIME_ZIP="$CACHE/VBCommunityRuntime1.00.zip"
+VB_RUNTIME_EXE="$CACHE/VB Community Runtime 1.00.exe"
 # OSTYPE
 OS_LINUX='linux'
 OS_DARWIN='darwin'
@@ -135,6 +140,7 @@ Sudo() {
 download() {
     if [ ! -f "$1" ]; then
         mkdir -p "$(dirname $1)"
+        debug "Downloading $2 as $1"
         return $(wget $2 -O "$1")
     fi
     return 0
@@ -142,12 +148,15 @@ download() {
 #
 # Args:
 #   $1  'file'
-#   $2  'md5sum'
+#   $2  'md5sum' set to 
 #   $3  'shasum'
 #
 verify() {
+    if [[ $2 -eq 0 ]] && [[ $3 -eq 0 ]]; then 
+        return 0 # disabled
+    fi
     local actual=""
-    if [ ! -z "$(which shasum)" ]; then
+    if  [ ! -z "$(which shasum)" ]; then
         actual="$(shasum $1)"
         expected=$3
     elif [ ! -z "$(which md5sum)" ]; then
@@ -253,7 +262,7 @@ Mount() {
                 "$(Sudo)" mount -t drvfs "$WSLDRIVE:" "$ISO_MOUNTING_POINT"; then
                 # create simlink in pfx/dosdevices/d:
                 if ln -s "$ISO_MOUNTING_POINT" "$WINEPREFIX/dosdevices/$WINE_DRIVE:"; then # or wine doesn't see it
-                    UNMOUNT=1                                           # OK, flag unmount
+                    UNMOUNT=1                                                              # OK, flag unmount
                 fi
             else
                 return 1 # failed
@@ -378,7 +387,7 @@ get() {
     if ! download $1 $2; then
         error "failed to download '$(basename $1)' from '$2'"
         return 1
-    fi
+    fi    
     # verify
     if ! verify $1 "$3" "$4"; then
         debug "failed to verify '$(basename $1)'"
@@ -432,7 +441,8 @@ Install() {
         else
             error "Can't install GPL"
         fi
-
+        # tryUnmount ISO
+        tryUnmount
     fi
 
     # installing GEM
@@ -456,6 +466,7 @@ Install() {
         fi
         # run wine command, save log in $HOME/{exename}.log
         if mkdir -p "$WINEPREFIX" && WINEPREFIX="$WINEPREFIX" wine "$GEM" >"$GEM_LOG" 2>&1; then
+            GEM_INSTALLED=1
             debug "installed GEM?"
         else
             debug "failed to install GEM"
@@ -463,8 +474,19 @@ Install() {
     else
         error "Can't install GEM"
     fi
-    # tryUnmount
-    tryUnmount
+    VB_RUNTIME_INSTALLED=0
+    # TODO if VB_RUNTIME_INSTALLED -eq 1
+    if [[ $GEM_INSTALLED -eq 1 ]]; then
+        if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL" 0 0 ; then
+            if unzip -oq $VB_RUNTIME_ZIP; then
+                debug "installing VB Runtime"
+                if WINEPREFIX="$WINEPREFIX" wine "$VB_RUNTIME_EXE" >"$(basename "$VB_RUNTIME_EXE").log" 2>&1; then
+                    VB_RUNTIME_INSTALLED=1
+                    debug "Installed VB Runtime"
+                fi
+            fi
+        fi        
+    fi
 }
 #
 # Args:
