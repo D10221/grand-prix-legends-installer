@@ -1,30 +1,25 @@
-Grand Prix Legends Wine Installer v0.0.1
+Grand Prix Legends wine Installer v0.0.1
 Usage: 'gpli [verb] [options]'
 Verbs: 
   install             'run GPL installers'
-  uninstall [options?] 'remove GPL,GEM and Wine Prefix'
+  uninstall [options?] 'remove GPL,GEM and wine Prefix'
       options: 
           'gpl'   remove 'c:\Sierra\gpl'
           'geml'  remove 'c:\Sierra\gpl'
           ''      remove 'prefix' (default)
+  run                   "run something in gpl's WINEPREFIX"
+      example:    '$gpli run wine winecfg'
+  wine                  "run wine 'something' gpl's WINEPREFIX"
+      example:    '$gpli wine winecfg'
+
 Options:
   -h --help      'Show this'
   -v --version   'Show 'gpli' version'
   --nomount      'Do not try to mount ISO'
-  --wsldrive='<drive>'
-      desc:   'drive letter to mount in wsl environment'
-              'required on WSL'
-      <drive>: [az-AZ]
-      example '--wsldrive=d'
+
 Vars:
  NOMOUNT         'Do not try to mount ISO'
  NOUSERMOUNT     'Do not try to mount ISO in userspace'
  NOROOTMOUNT     'Do not try to mount ISO if requires root access
  DEBUG           'show debug info'
                   example '$ DEBUG=1 ./gpli.local install'
- WSLDRIVE        'show debug info'
-    desc:        'drive letter to mount in wsl environment'
-                 'required to install GPL on WSL'
-      <drive>: [az-AZ]
-                  example '$ WSLDRIVE=d ./gpli.local install'
-examples: 
