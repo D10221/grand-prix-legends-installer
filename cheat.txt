@@ -1,0 +1,14 @@
+Cheatsheet:
+    Debug:
+        DEBUG=1 ./gpli "$@"
+    Debug bash:
+        DEBUG=1 bash -x ./gpli "$@"
+    GPL:
+        ./gpli RUN 'c:\Sierra\GPL\gpl.exe'
+    GPL 67:
+        'c:\Sierra\GPL\gplc67.exe'
+    GEM+
+        'c:\GPLSecrets\GEM+\GEMP2.exe'
+    Which wine
+        WINE_BIN="wine/winehq-stable_6.0.2~focal-1_amd64/usr/bin"  PATH="$PATH:$HOME/$WINE_BIN" ./gpli "$@"
+    
