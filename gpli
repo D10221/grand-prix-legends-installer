@@ -50,7 +50,7 @@ ISO=$CACHE/grand-prix-legends.iso
 ISO_MD5="c42ff47a96633e28a6d03afa078b1da2  $ISO"
 ISO_SHASUM="082542e01a9e63c914a8f34f77ee306531a2aa13  $ISO"
 ISO_NAME="$(basename $ISO)"
-# Global mounting point, to use by 'mount' , NOT by 'udisksctl'
+# Global mounting point, to use by 'mount', NOT by 'udisksctl'
 ISO_MOUNTING_POINT="/mnt/$ISO_NAME"
 INSTALLER_URL="http://gem.grandprixlegends.info/gplinstall_beta_1.08.exe"
 INSTALLER="$CACHE/gplinstall_beta_1.08.exe"
