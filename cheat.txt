@@ -1,4 +1,6 @@
 Cheatsheet:
+    Install:
+        gpli install gpl gplsecrets vbr
     Debug:
         DEBUG=1 ./gpli "$@"
     Debug bash:
@@ -9,6 +11,9 @@ Cheatsheet:
         gpli wine 'c:\Sierra\GPL\gplc67.exe'
     GEM+
         gpli wine 'c:\GPLSecrets\GEM+\GEMP2.exe'
-    Which wine
+    Cmd:
+        gpli wine cmd 'c:\'
+    Explorer:
+        gpli wine explorer
+    Alternative wine
         WINE_BIN="wine/winehq-stable_6.0.2~focal-1_amd64/usr/bin" PATH="$PATH:$HOME/$WINE_BIN" ./gpli "$@"
-    
