@@ -511,7 +511,7 @@ Install() {
         GEM_INSTALLED=1
     fi
     # GEM
-    if [ ! -z "$SELECTED" ] && [[ "$SELECTED" =~ " gem " ]]; then
+    if [[ "$SELECTED" =~ " gem " ]]; then
         debug "installing GEM"
         if [[ $GPL_INSTALLED -eq 1 ]]; then
             # can't install GEM if there is no 'c:\Sierra\GPL\gpl.exe'
@@ -535,12 +535,12 @@ Install() {
     else
         debug "GEM+ not in selection '$SELECTED'"
     fi
-    # Unpack GEM: into drvie c:\
-    # It breaks when installing GEM+ with the installer
+    # Unpack GEM: into drive c:\
+    # prefix breaks when installing GEM+ with the installer
     # try unpack required files
     # WARN: 'GPLPatchDLL.dll must be included and extracted into syswow64?'
     # and the VB runtime after!
-    if [ ! -z "$SELECTED" ] && [[ "$SELECTED" =~ " gplsecrets " ]]; then
+    if [[ "$SELECTED" =~ " gplsecrets " ]]; then
         # get GEM installer  download if not in cache
         if get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
             local GPLSecrets="$DRIVE_C/GPLSecrets"
@@ -554,6 +554,10 @@ Install() {
                 error "failed to 'innoextract' '$(basename $GPLSecrets)'"
             else
                 info "innoextracted '$(basenameNoExtension $GEM)' into '$GPLSecrets'"
+                if ! cp "$DRIVE_C/gplsecrets/syswow64/GPLPatchDLL.dll" "$DRIVE_C/windows/syswow64/"; then
+                    warn "Failed to copy GPLPatchDLL.dll to windows/syswow64"
+                    warn "GEMP2.exe might not work"
+                fi
             fi
         fi
     else
@@ -562,23 +566,23 @@ Install() {
     # VBR
     VB_RUNTIME_INSTALLED=0
     # TODO if VB_RUNTIME_INSTALLED -eq 1
-    if [ ! -z "$SELECTED" ] && [[ "$SELECTED" =~ "vbr" ]]; then
+    if [[ "$SELECTED" =~ "vbr" ]]; then
         debug "Installig VBR"
         if [[ $VB_RUNTIME_INSTALLED -eq 0 || $REINSTALL -eq 1 ]]; then
-            if [[ $GEM_INSTALLED -eq 1 ]]; then
-                if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL"; then
-                    if Unzip "$VB_RUNTIME_ZIP" "$CACHE"; then
-                        # unzipped to cache
-                        debug "Running VB Runtime Installer"
-                        if WineRunExe "$VB_RUNTIME_EXE"; then
-                            VB_RUNTIME_INSTALLED=1
-                            info "VB Runtime Installed"
-                        else
-                            error "Can't install VB Runtime"
-                        fi
+            # if [[ $GEM_INSTALLED -eq 1 ]]; then
+            # fi
+            if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL"; then
+                if Unzip "$VB_RUNTIME_ZIP" "$CACHE"; then
+                    # unzipped to cache
+                    debug "Running VB Runtime Installer"
+                    if WineRunExe "$VB_RUNTIME_EXE"; then
+                        VB_RUNTIME_INSTALLED=1
+                        info "VB Runtime Installed"
                     else
-                        debug "can't unzip 'VB Runtime'"
+                        error "Can't install VB Runtime"
                     fi
+                else
+                    debug "can't unzip 'VB Runtime'"
                 fi
             fi
         fi
@@ -674,7 +678,8 @@ remove() {
 #
 uninstall() {
     if [[ $# -lt 1 ]]; then
-        remove 'prefix' "$WINEPREFIX"
+        error "expected args"
+        return 1
     else
         for a in $@; do
             case "$a" in
@@ -685,7 +690,13 @@ uninstall() {
 
             gem)
                 local DIR=$(dirname $GEM_EXE)
-                remove 'GPL' "$DIR"
+                remove 'GEM+' "$DIR"
+                ;;
+            gplsecrets)
+                remove 'GPL' "$DRIVE_C/gplsecrets"
+                ;;
+            pfx)
+                remove 'prefix' "$WINEPREFIX"
                 ;;
             *)
                 error "Can't remove '$a'"
@@ -695,6 +706,40 @@ uninstall() {
         done
     fi
 
+}
+#
+# open WINEPREFIX/?
+#
+Open() {
+    if [ $OS == $OS_DARWIN ]; then
+        open $WINEPREFIX/"$1"
+    else
+        xdg-open $WINEPREFIX/"$1"
+    fi
+}
+#
+#
+#
+Launch() {
+    case "$1" in
+    gpl)
+        withPrefix "$WINE" 'c:\sierra\GPL\gpl.exe'
+        ;;
+    gpl67)
+        withPrefix "$WINE" 'c:\sierra\GPL\gplc67.exe'
+        ;;
+    gem+)
+        # TODO: use find -> winepath ?
+        if ! withPrefix "$WINE" 'c:\GPLSecrets\GEM+\GEMP2.exe'; then
+            if ! withPrefix "$WINE" 'c:\gplsecrets\app\GEM+\GEMP2.exe'; then
+                error "Can't find or open GEMP2.exe"
+            fi
+        fi
+        ;;
+    *)
+        error "Don't how to open '$1'"
+        ;;
+    esac
 }
 #
 # Args:
@@ -717,24 +762,29 @@ usage() {
     echo "Grand Prix Legends wine Installer v$VERSION"
     echo "Usage: '$_filename [verb] [options]'"
     echo "Verbs: "
-    echo "  install [options?] [target]?   'run GPL installers'"
+    echo "  install [options?] [what]?   'run GPL installers'"
     echo "      options:"
     echo "          -r  'REINSTALL'"
-    echo "      target:"
-    echo "         default: 'all'"
+    echo "      what:"
     echo "         values: gpl gem vbr"
     echo "      example:"
-    echo "          \$gpli install -r gpl # REINSTALL gpl only"
+    echo "          \$gpli install -r gpl # REINSTALL gpl"
     echo "          \$gpli install -r gpl gem vbr # reinstall gpl gem vbr"
     echo "  uninstall [options?] 'remove GPL,GEM and wine Prefix'"
     echo "      options: "
     echo "          'gpl'   remove 'c:\Sierra\gpl'"
     echo "          'geml'  remove 'c:\Sierra\gpl'"
-    echo "          ''      remove 'prefix' (default)"
+    echo "          'pfx'      remove 'prefix' (default)"
     echo "  run                   \"run something in gpl's WINEPREFIX\""
     echo "      example:    '\$$_filename run wine winecfg'"
     echo "  wine                  \"run wine 'something' gpl's WINEPREFIX\""
     echo "      example:    '\$$_filename wine winecfg'"
+    echo "  open"
+    echo "      example: '\$$_filename open' # opens \$WINEPREFIX"
+    echo "      example: '\$$_filename open dirve_c ' # opens \$WINEPREFIX/drive_c"
+    echo "  launch"
+    echo "      example: '\$$_filename launch gpl'  # starts wine 'c:\Sierra\GPL\gpl.exe'"
+    echo "      example: '\$$_filename launch gem+' # starts wine 'c:\GPLSecrets\GEM+\GEMP2.exe'"
     echo ""
     echo "Options:"
     echo "  -h --help      'Show this'"
@@ -858,6 +908,14 @@ run)
 wine)
     shift
     withPrefix "$WINE" $@
+    ;;
+open)
+    shift
+    Open "$1"
+    ;;
+launch)
+    shift
+    Launch "$1"
     ;;
 *)
     error "Unkown verb:'$1'"
