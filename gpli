@@ -23,6 +23,7 @@
 #    - udisksctl
 #    - file
 #    - grep
+#    - innoextract
 
 # ## Downloads:
 #    - GrandPrixLegends.iso from archive.org
@@ -62,9 +63,11 @@ GEM="$CACHE/GEMPackage_2.5.0.32.exe"
 GEM_MD5="d82cd2428ce28081a4dca6f3e395e95a  $GEM"
 GEM_SHASUM="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM"
 GEM_LOG="$HOME/$(basename $GEM).log"
-WINEPREFIX="$GPL_HOME/pfx"
 ISO_DEVICE="/dev/disk/by-label/GPL"
+# wine
 WINE="$(which wine)"
+WINEPREFIX="$GPL_HOME/pfx"
+DRIVE_C="$WINEPREFIX/drive_c"
 _filename=$(basename $0)
 # use find?
 GPL_EXE="$WINEPREFIX/drive_c/Sierra/GPL/gpl.exe"
@@ -400,8 +403,8 @@ get() {
 #   Install [options] [...selection]
 # Opts:
 #   -r  'REINSTALL'
-# ex: 'install # everything'
-# ex: 'install gpl'
+# ex: 'install # gpl'
+# ex: 'install gpl # default'
 # ex: 'install -r gpl' "REINSTALL gpl"
 # ex: 'install gpl gem gplsecrets vbr'
 #
@@ -421,9 +424,9 @@ Install() {
     done
     local SELECTED=''
     if [[ $# -lt 1 ]]; then
-        debug 'Installing everything'
+        error "Expected args"
+        return 1
     else
-        debug "args: $@"
         for a in $@; do
             case "$a" in
             -*) ;; # skip options
@@ -450,6 +453,11 @@ Install() {
             esac
         done
     fi
+    debug "Args: $@"
+    if [ -z "$SELECTED" ]; then
+        error "Nothing to selected"
+        return 1
+    fi
 
     local GPL_INSTALLED=0
     if [ -f $GPL_EXE ]; then
@@ -458,7 +466,7 @@ Install() {
     fi
 
     # GPL
-    if [ -z "$SELECTED" ] || [[ "$SELECTED" =~ "gpl" ]]; then
+    if [[ "$SELECTED" =~ " gpl " ]]; then
         debug "Installing GPL"
         # if not installed or reinstall
         if [[ $GPL_INSTALLED -eq 0 || $REINSTALL -eq 1 ]]; then
@@ -503,7 +511,7 @@ Install() {
         GEM_INSTALLED=1
     fi
     # GEM
-    if [ -z "$SELECTED" ] || [[ "$SELECTED" =~ "gem" ]]; then
+    if [ ! -z "$SELECTED" ] && [[ "$SELECTED" =~ " gem " ]]; then
         debug "installing GEM"
         if [[ $GPL_INSTALLED -eq 1 ]]; then
             # can't install GEM if there is no 'c:\Sierra\GPL\gpl.exe'
@@ -531,31 +539,36 @@ Install() {
     # It breaks when installing GEM+ with the installer
     # try unpack required files
     # WARN: 'GPLPatchDLL.dll must be included and extracted into syswow64?'
-    # and the VB runtime after! 
-    if [ -z "$SELECTED" ] || [[ "$SELECTED" =~ "gplsecrets" ]]; then
-        #TODO: Download
-        ZIPFILE="$CACHE/gplsecrets.zip"
-        if [ ! -f "$(which unzip)" ]; then
-            error "Can't find 'unzip'"
+    # and the VB runtime after!
+    if [ ! -z "$SELECTED" ] && [[ "$SELECTED" =~ " gplsecrets " ]]; then
+        # get GEM installer  download if not in cache
+        if get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
+            local GPLSecrets="$DRIVE_C/GPLSecrets"
+            if [ ! -d "$DRIVE_C" ]; then
+                if ! createPrefix; then
+                    debug "Failed to create prefix: $WINEPREFIX"
+                    return 1
+                fi
+            fi
+            if ! innoextract "$GEM" -d "$DRIVE_C/gplsecrets" -s; then
+                error "failed to 'innoextract' '$(basename $GPLSecrets)'"
+            else
+                info "innoextracted '$(basenameNoExtension $GEM)' into '$GPLSecrets'"
+            fi
         fi
-        debug "Unzipping '$ZIPFILE'"
-        DRIVE_C="$WINEPREFIX/drive_c"
-        # Unzip to Prefix, Unzip To Drive 'c:\'
-        if unzip -oq "$ZIPFILE" -d "$DRIVE_C"; then
-
-            local NAME=$(echo $(basename "$ZIPFILE") | tr -d '.zip')
-            debug "Unzipped: $NAME to drive $DRIVE_C"
-        fi
-    fi    
+    else
+        debug "gplsecrets not in selection '$SELECTED'"
+    fi
     # VBR
     VB_RUNTIME_INSTALLED=0
     # TODO if VB_RUNTIME_INSTALLED -eq 1
-    if [ -z "$SELECTED" ] || [[ "$SELECTED" =~ "vbr" ]]; then
+    if [ ! -z "$SELECTED" ] && [[ "$SELECTED" =~ "vbr" ]]; then
         debug "Installig VBR"
         if [[ $VB_RUNTIME_INSTALLED -eq 0 || $REINSTALL -eq 1 ]]; then
             if [[ $GEM_INSTALLED -eq 1 ]]; then
                 if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL"; then
-                    if Unzip "$VB_RUNTIME_ZIP"; then
+                    if Unzip "$VB_RUNTIME_ZIP" "$CACHE"; then
+                        # unzipped to cache
                         debug "Running VB Runtime Installer"
                         if WineRunExe "$VB_RUNTIME_EXE"; then
                             VB_RUNTIME_INSTALLED=1
@@ -563,6 +576,8 @@ Install() {
                         else
                             error "Can't install VB Runtime"
                         fi
+                    else
+                        debug "can't unzip 'VB Runtime'"
                     fi
                 fi
             fi
@@ -574,14 +589,31 @@ Install() {
 #
 # Args:
 #   $1  'zip file'
+#   $2  'target directory'
 #
 Unzip() {
     if [ ! -f "$(which unzip)" ]; then
         error "Can't find 'unzip'"
     fi
-    debug "Unzipping '$1'"
-    unzip -oq "$1" -d "$CACHE"
+    debug "Unzipping '$1' to '$2'"
+    unzip -oq "$1" -d "$2"
     return $?
+}
+#
+# get basename without ext
+# ex: basenameNoExtension 'file.zip' '.zip'
+#
+basenameNoExtension() {
+    echo $(basename "$1") | tr -d "$2"
+}
+
+WIN_VERSION="win7"
+createPrefix() {
+    if ! withPrefix wine winecfg -v "$WIN_VERSION"; then
+        return 1
+    else
+        debug "Created prefix as '$WIN_VERSION'"
+    fi
 }
 #
 # Run exe on WINEPREFIX, log to ~/<exe-name>.log
@@ -606,6 +638,7 @@ withPrefix() {
         return 1
     fi
     if ! mkdir -p "$WINEPREFIX" || ! WINEPREFIX="$WINEPREFIX" $@; then
+        error "Failed to run '$@' on WINEPREFIX="$WINEPREFIX""
         return 1
     fi
 }
