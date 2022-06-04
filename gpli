@@ -98,7 +98,7 @@ esac
 # error echoes to stderr
 #
 error() {
-    echo -e "\e[31m$_filename: $@\e[0m" >&2
+    echo -e "\e[31m$_filename/${FUNCNAME[1]}: $@\e[0m" >&2
 }
 #
 # debug
@@ -395,49 +395,101 @@ get() {
     fi
 }
 #
-# install on linux
+# Run installer
+# Usage:
+#   Install [options] [...selection]
+# Opts:
+#   -r  'REINSTALL'
+# ex: 'install # everything'
+# ex: 'install gpl'
+# ex: 'install -r gpl'  "REINSTALL gpl"
+# ex: 'install gpl gem vbr'
 #
 Install() {
+    local REINSTALL=0
+    while getopts ":r" arg; do
+        case ${arg} in
+        r)
+            REINSTALL=1
+            debug "Set to reinstall"
+            ;;
+        *)
+            error "unknown option '$OPTARG'"
+            return 1
+            ;;
+        esac
+    done
+    local SELECTED=''
+    if [[ $# -lt 1 ]]; then
+        debug 'Installing everything'
+    else
+        debug "args: $@"
+        for a in $@; do
+            case "$a" in
+            -*) ;; # skip options
+            gpl)
+                debug "GPL selected"
+                SELECTED+=" gpl "
+                ;;
+            gem)
+                debug "GEM selected"
+                SELECTED+=" gem "
+                ;;
+            vbr)
+                debug "VBR selected"
+                SELECTED+=" vbr "
+                ;;
+            *)
+                error "Can't install '$a'"
+                exit 1
+                ;;
+            esac
+        done
+    fi
 
-    # installing GPL
     local GPL_INSTALLED=0
     if [ -f $GPL_EXE ]; then
         debug "$(basename $GPL_EXE) found at $(dirname $GPL_EXE)"
         GPL_INSTALLED=1
     fi
 
-    if [[ $GPL_INSTALLED -eq 0 ]]; then
-
-        # get GPL ISO installer, download if not in cache
-        if ! get "$ISO" "$ISO_URL" "$ISO_MD5" "$ISO_SHASUM"; then
-            return 1
-        fi
-        # get GPL installer, download if not in cache
-        if ! get "$INSTALLER" "$INSTALLER_URL" "$INSTALLER_MD5" "$INSTALLER_SHASUM"; then
-            return 1
-        fi
-
-        # try mount ISO, required by GPL installer
-        local mounted=0
-        if tryMount; then
-            mounted=1
-        fi
-
-        if [[ $mounted -eq 1 ]]; then
-            debug "Installing GPL"
-            if WineRunExe "$INSTALLER"; then
-                GPL_INSTALLED=1
-                debug "installed GPL"
-            else
-                error "Failed to install GPL"
+    # GPL
+    if [ -z "$SELECTED" ] || [[ "$SELECTED" =~ "gpl" ]]; then
+        debug "Installing GPL"
+        # if not installed or reinstall
+        if [[ $GPL_INSTALLED -eq 0 || $REINSTALL -eq 1 ]]; then
+            # get GPL ISO installer, download if not in cache
+            if ! get "$ISO" "$ISO_URL" "$ISO_MD5" "$ISO_SHASUM"; then
+                return 1
             fi
+            # get GPL installer, download if not in cache
+            if ! get "$INSTALLER" "$INSTALLER_URL" "$INSTALLER_MD5" "$INSTALLER_SHASUM"; then
+                return 1
+            fi
+            # try mount ISO, required by GPL installer
+            local mounted=0
+            if tryMount; then
+                mounted=1
+            fi
+            #  GPL installer needs the CD
+            if [[ $mounted -eq 1 ]]; then
+                debug "Running GPL installer"
+                if WineRunExe "$INSTALLER"; then
+                    GPL_INSTALLED=1
+                    debug "installed GPL"
+                else
+                    error "Failed to install GPL"
+                fi
+            else
+                error "Can't install GPL"
+            fi
+            # tryUnmount ISO
+            tryUnmount
         else
-            error "Can't install GPL"
+            info "GPL Installed"
         fi
-        # tryUnmount ISO
-        tryUnmount
     else
-        info "GPL Installed"
+        debug "GPL not in selection '$SELECTED'"
     fi
 
     # installing GEM
@@ -446,41 +498,53 @@ Install() {
         debug "$(basename $GEM) found at $(dirname $GEM)"
         GEM_INSTALLED=1
     fi
-
-    # can't install GEM if there is no 'c:\Sierra\GPL\gpl.exe'
-    if [[ $GPL_INSTALLED -eq 1 ]]; then
-        if [[ "$GEM_INSTALLED" -eq 0 ]]; then
-
-            debug "installing GEM"
-            # get GEM installer  download if not in cache
-            if get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
-                if WineRunExe "$GEM"; then
-                    GEM_INSTALLED=1
-                    debug "installed GEM?"
-                else
-                    debug "failed to install GEM"
+    # GEM
+    if [ -z "$SELECTED" ] || [[ "$SELECTED" =~ "gem" ]]; then
+        debug "installing GEM"
+        if [[ $GPL_INSTALLED -eq 1 ]]; then
+            # can't install GEM if there is no 'c:\Sierra\GPL\gpl.exe'
+            if [[ "$GEM_INSTALLED" -eq 0 || $REINSTALL -eq 1 ]]; then
+                # get GEM installer  download if not in cache
+                if get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
+                    debug "Runnig GEM installer"
+                    if WineRunExe "$GEM"; then
+                        GEM_INSTALLED=1
+                        debug "installed GEM?"
+                    else
+                        debug "failed to install GEM"
+                    fi
                 fi
+            else
+                info "GEM installed"
             fi
         else
-            info "GEM installed"
+            error "Can't install GEM"
         fi
     else
-        error "Can't install GEM"
+        debug "GEM+ not in selection '$SELECTED'"
     fi
+    # VBR
     VB_RUNTIME_INSTALLED=0
     # TODO if VB_RUNTIME_INSTALLED -eq 1
-    if [[ $GEM_INSTALLED -eq 1 ]]; then
-        if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL"; then
-            if Unzip "$VB_RUNTIME_ZIP"; then
-                debug "installing VB Runtime"
-                if WineRunExe "$VB_RUNTIME_EXE"; then
-                    VB_RUNTIME_INSTALLED=1
-                    info "VB Runtime Installed"
-                else
-                    error "Can't install VB Runtime, see $LOGFILE"
+    if [ -z "$SELECTED" ] || [[ "$SELECTED" =~ "vbr" ]]; then
+        debug "Installig VBR"
+        if [[ $VB_RUNTIME_INSTALLED -eq 0 || $REINSTALL -eq 1 ]]; then
+            if [[ $GEM_INSTALLED -eq 1 ]]; then
+                if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL"; then
+                    if Unzip "$VB_RUNTIME_ZIP"; then
+                        debug "Running VB Runtime Installer"
+                        if WineRunExe "$VB_RUNTIME_EXE"; then
+                            VB_RUNTIME_INSTALLED=1
+                            info "VB Runtime Installed"
+                        else
+                            error "Can't install VB Runtime"
+                        fi
+                    fi
                 fi
             fi
         fi
+    else
+        debug "VBR not in selection '$SELECTED'"
     fi
 }
 #
@@ -596,7 +660,15 @@ usage() {
     echo "Grand Prix Legends wine Installer v$VERSION"
     echo "Usage: '$_filename [verb] [options]'"
     echo "Verbs: "
-    echo "  install             'run GPL installers'"
+    echo "  install [options?] [target]?   'run GPL installers'"
+    echo "      options:"
+    echo "          -r  'REINSTALL'"
+    echo "      target:"
+    echo "         default: 'all'"
+    echo "         values: gpl gem vbr"
+    echo "      example:"
+    echo "          \$gpli install -r gpl # REINSTALL gpl only"
+    echo "          \$gpli install -r gpl gem vbr # reinstall gpl gem vbr"
     echo "  uninstall [options?] 'remove GPL,GEM and wine Prefix'"
     echo "      options: "
     echo "          'gpl'   remove 'c:\Sierra\gpl'"
@@ -607,7 +679,7 @@ usage() {
     echo "  wine                  \"run wine 'something' gpl's WINEPREFIX\""
     echo "      example:    '\$$_filename wine winecfg'"
     echo ""
-    echo "Options:"    
+    echo "Options:"
     echo "  -h --help      'Show this'"
     echo "  -v --version   'Show '$_filename' version'"
     echo "  --nomount      'Do not try to mount ISO'"
@@ -631,7 +703,7 @@ usage() {
         echo "                 'required to install GPL on WSL'"
         echo "      <drive>: [az-AZ]"
         echo "                  example '\$ WSLDRIVE=d ./gpli.local install'"
-    fi    
+    fi
 }
 #
 if [[ $# -lt 1 ]]; then
@@ -699,7 +771,7 @@ while getopts ":hvu-:" o; do
     v)
         option "version" "$OPTARG"
         ;;
-    *)
+    ?)
         if [ "$OPTERR" != 1 ] || [ "${OPTSPEC:0:1}" = ":" ]; then
             error "bad optiont: '-${OPTARG}'"
         fi
@@ -711,7 +783,8 @@ done
 # launch verbs
 case $1 in
 install)
-    if Install; then
+    shift
+    if Install "$@"; then
         debug "done"
     else
         error "done with error"
@@ -728,7 +801,7 @@ run)
 wine)
     shift
     withPrefix "$WINE" $@
-    ;;    
+    ;;
 *)
     error "Unkown verb:'$1'"
     exit 1
