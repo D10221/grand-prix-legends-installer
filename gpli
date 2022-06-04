@@ -402,8 +402,8 @@ get() {
 #   -r  'REINSTALL'
 # ex: 'install # everything'
 # ex: 'install gpl'
-# ex: 'install -r gpl'  "REINSTALL gpl"
-# ex: 'install gpl gem vbr'
+# ex: 'install -r gpl' "REINSTALL gpl"
+# ex: 'install gpl gem gplsecrets vbr'
 #
 Install() {
     local REINSTALL=0
@@ -434,6 +434,10 @@ Install() {
             gem)
                 debug "GEM selected"
                 SELECTED+=" gem "
+                ;;
+            gplsecrets)
+                debug "gplsecrets selected"
+                SELECTED+=" gplsecrets "
                 ;;
             vbr)
                 debug "VBR selected"
@@ -523,6 +527,26 @@ Install() {
     else
         debug "GEM+ not in selection '$SELECTED'"
     fi
+    # Unpack GEM: into drvie c:\
+    # It breaks when installing GEM+ with the installer
+    # try unpack required files
+    # WARN: 'GPLPatchDLL.dll must be included and extracted into syswow64?'
+    # and the VB runtime after! 
+    if [ -z "$SELECTED" ] || [[ "$SELECTED" =~ "gplsecrets" ]]; then
+        #TODO: Download
+        ZIPFILE="$CACHE/gplsecrets.zip"
+        if [ ! -f "$(which unzip)" ]; then
+            error "Can't find 'unzip'"
+        fi
+        debug "Unzipping '$ZIPFILE'"
+        DRIVE_C="$WINEPREFIX/drive_c"
+        # Unzip to Prefix, Unzip To Drive 'c:\'
+        if unzip -oq "$ZIPFILE" -d "$DRIVE_C"; then
+
+            local NAME=$(echo $(basename "$ZIPFILE") | tr -d '.zip')
+            debug "Unzipped: $NAME to drive $DRIVE_C"
+        fi
+    fi    
     # VBR
     VB_RUNTIME_INSTALLED=0
     # TODO if VB_RUNTIME_INSTALLED -eq 1
