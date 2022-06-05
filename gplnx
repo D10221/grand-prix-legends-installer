@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# # Grand Prix Legends installer <small>(wip)</small>
+# Grand Prix Legends Linux <small>(wip)</small>
 # Grand Prix Legends installer for wine
 
 # Creates wine prefix, mounts iso, downloads and runs the installer
 
 # ## Works on:
 #   - Ubuntu
-#   - Maybe Debian/Ubuntu derivatives
+#   - Maybe Debian/Ubuntu derivatives. try ot and let me know
 #   - MacOS
 #   - WSL (partially)
 
@@ -32,13 +32,13 @@
 # ## Notes:
 #   - on 'wsl' you will need get display working
 #   - on 'wsl' wine doesn't see the mounted drive even when successfully mounted
+#   - uninstall doesn't uninstall but nukes the wine prefix
 
 # ### TODO:
 #   - download dependencies and setup prefix for vb6 dependencies
 #   - redo argument parsing, its very picky about switch order
 #   - don't download until required
 #   - switches: NODOWNLOAD, NOCHECKSUM
-#   - uninstall doesn't uninstall but nukes the wine prefix
 #   - switch: --info, display installation details
 
 # Meta

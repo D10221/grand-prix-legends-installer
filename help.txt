@@ -1,20 +1,33 @@
 Grand Prix Legends wine Installer v0.0.1
-Usage: 'gpli [verb] [options]'
+Usage: 'gplnx [verb] [options]'
 Verbs: 
-  install             'run GPL installers'
+  install [options?] [what]?   'run GPL installers'
+      options:
+          no options implemented
+      what:
+         values: gpl gem vbr gplsecrets
+      example:
+          $gpli install -r gpl # REINSTALL gpl
+          $gpli install -r gpl gem vbr # reinstall gpl gem vbr
   uninstall [options?] 'remove GPL,GEM and wine Prefix'
       options: 
           'gpl'   remove 'c:\Sierra\gpl'
           'geml'  remove 'c:\Sierra\gpl'
-          ''      remove 'prefix' (default)
+          'pfx'      remove 'prefix' (default)
   run                   "run something in gpl's WINEPREFIX"
-      example:    '$gpli run wine winecfg'
+      example:    '$gplnx run wine winecfg'
   wine                  "run wine 'something' gpl's WINEPREFIX"
-      example:    '$gpli wine winecfg'
+      example:    '$gplnx wine winecfg'
+  open
+      example: '$gplnx open' # opens $WINEPREFIX
+      example: '$gplnx open dirve_c ' # opens $WINEPREFIX/drive_c
+  launch
+      example: '$gplnx launch gpl'  # starts wine 'c:\Sierra\GPL\gpl.exe'
+      example: '$gplnx launch gem+' # starts wine 'c:\GPLSecrets\GEM+\GEMP2.exe'
 
 Options:
   -h --help      'Show this'
-  -v --version   'Show 'gpli' version'
+  -v --version   'Show 'gplnx' version'
   --nomount      'Do not try to mount ISO'
 
 Vars:
