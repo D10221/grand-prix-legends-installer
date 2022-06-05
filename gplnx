@@ -19,7 +19,7 @@
 #    - udisksctl
 #    - file
 #    - grep
-#    - innoextract
+#    - [innoextract](https://constexpr.org/innoextract/)
 # ## Downloads:
 #    - GrandPrixLegends.iso from archive.org
 #    - gplinstall_beta_1.08.exe from  grandprixlegends.info
@@ -426,7 +426,7 @@ install:gem() {
         echo "$_filename install gem [options] [args]"
         echo "Options: "
         echo " -i Runs GEM+ installer"
-        echo " -u Unpacks GEM+ installer"
+        echo " -u Unpacks GEM+ installer into c:\GPLSecrets , find GEM+ in c:\GPLSecrets\app"
         echo " -h Shows this"
     }
     while getopts ":iuh" arg; do
@@ -773,7 +773,8 @@ usage() {
     echo "          gpl gem vbr"
     echo "      example:"
     echo "          \$gpli install -r gpl # REINSTALL gpl"
-    echo "          \$gpli install -r gpl gem vbr # reinstall gpl gem vbr"
+    echo "          \$gpli install -r gpl gem vbr # reinstall gpl gem -u vbr"
+    echo "      Notes:   gem target has options see install gem -h for details"
     echo "  uninstall [options?] 'remove GPL,GEM and wine Prefix'"
     echo "      options: "
     echo "          'gpl'   remove 'c:\Sierra\gpl'"
