@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # Grand Prix Legends Linux <small>(wip)</small>
-# Grand Prix Legends installer for wine
-
-# Creates wine prefix, mounts iso, downloads and runs the installer
+# ## Desc: 
+#   Creates wine prefix, mounts iso, downloads and runs the installer
 
 # ## Works on:
 #   - Ubuntu
-#   - Maybe Debian/Ubuntu derivatives. try ot and let me know
+#   - Maybe Debian/Ubuntu derivatives. try it and let me know
 #   - MacOS
 #   - WSL (partially)
 
@@ -30,20 +29,19 @@
 #    - gplinstall_beta_1.08.exe from  grandprixlegends.info
 
 # ## Notes:
-#   - on 'wsl' you will need get display working
-#   - on 'wsl' wine doesn't see the mounted drive even when successfully mounted
+#   - on 'wsl' you will need get display working, see [gwsl](https://opticos.github.io/gwsl/)
 #   - uninstall doesn't uninstall but nukes the wine prefix
 
 # ### TODO:
-#   - download dependencies and setup prefix for vb6 dependencies
-#   - redo argument parsing, its very picky about switch order
-#   - don't download until required
-#   - switches: NODOWNLOAD, NOCHECKSUM
+#   - switches: NOCHECKSUM
 #   - switch: --info, display installation details
+#   - Create GEM+ shortcuts when unpacking instead of installing
 
 # Meta
 VERSION=0.0.1
 _filename=$(basename $0)
+URL="https://github.com/D10221/$_filename"
+SRC="https://raw.githubusercontent.com/D10221/$_filename/main/$_filename"
 #
 # debug
 # Set debug to glob * to see all , or enable by func name
