@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-# Grand Prix Legends Linux <small>(wip)</small>
+# Grand Prix Legends Linux 
 # ## Desc: 
-#   Creates wine prefix, mounts iso, downloads and runs the installer
-
+#   Creates wine prefix, mounts iso, downloads and runs the GPL, GEM+ and  Visual Basic runtime installers
 # ## Works on:
 #   - Ubuntu
 #   - Maybe Debian/Ubuntu derivatives. try it and let me know
 #   - MacOS
 #   - WSL (partially)
-
 # ## Tested on:
 #   - Ubuntu 20.4
 #   - MacOS Monterrey 12.3.1
 #   - Windows 10 Wsl Ubuntu 20.4
-
 # ## Requires:
 #    - bash 'on mac may require `brew install bash`'
 #    - wget
@@ -23,10 +20,11 @@
 #    - file
 #    - grep
 #    - innoextract
-
 # ## Downloads:
 #    - GrandPrixLegends.iso from archive.org
 #    - gplinstall_beta_1.08.exe from  grandprixlegends.info
+#    - GEMPackage_2.5.0.32.exe from gem.grandprixlegends.info
+#    - Visual Basic runtime from vb-paradise.de
 
 # ## Notes:
 #   - on 'wsl' you will need get display working, see [gwsl](https://opticos.github.io/gwsl/)
@@ -36,7 +34,6 @@
 #   - switches: NOCHECKSUM
 #   - switch: --info, display installation details
 #   - Create GEM+ shortcuts when unpacking instead of installing
-
 # Meta
 VERSION=0.0.1
 _filename=$(basename $0)
@@ -414,7 +411,7 @@ get() {
     fi
 }
 #
-# Run installer
+# Install
 # Usage:
 #   Install [options] [...selection]
 # Opts:
