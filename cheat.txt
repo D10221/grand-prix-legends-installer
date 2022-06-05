@@ -1,6 +1,6 @@
 Cheatsheet:
     Install:
-        gpli install gpl gplsecrets vbr
+        gpli install gpl gem -u vbr
     Debug:
         DEBUG='*' ./gpli "$@"
     Debug bash:

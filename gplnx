@@ -549,7 +549,7 @@ install:vbr() {
 #   -y 'yes' accepts all options , not implemented
 # Example
 #  'install # gpl'
-#  'install gpl gem gplsecrets vbr'
+#  'install gpl gem vbr'
 #
 Install() {
     local YES=0
@@ -695,10 +695,7 @@ uninstall() {
                 local GEM_EXE="$WINEPREFIX/drive_c/GPLSecrets/GEM+/GEMP2.exe"
                 local DIR=$(dirname $GEM_EXE)
                 remove 'GEM+' "$DIR"
-                ;;
-            gplsecrets)
-                remove 'GPL' "$DRIVE_C/gplsecrets"
-                ;;
+                ;;          
             pfx)
                 remove 'prefix' "$WINEPREFIX"
                 ;;
@@ -738,7 +735,7 @@ Launch() {
     gem+)
         # TODO: use find -> winepath ?
         if ! runWithPrefix "$WINE" start 'c:\GPLSecrets\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
-            if ! runWithPrefix "$WINE" start 'c:\gplsecrets\app\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
+            if ! runWithPrefix "$WINE" start 'c:\GPLSecrets\app\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
                 error "Can't find or open GEMP2.exe"
             fi
         fi

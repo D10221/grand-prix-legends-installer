@@ -5,7 +5,7 @@ Verbs:
       options:
           no options implemented
       what:
-         values: gpl gem vbr gplsecrets
+         values: gpl gem vbr
       example:
           $gpli install -r gpl # REINSTALL gpl
           $gpli install -r gpl gem vbr # reinstall gpl gem vbr
