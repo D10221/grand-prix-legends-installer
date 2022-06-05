@@ -2,9 +2,9 @@ Cheatsheet:
     Install:
         gpli install gpl gplsecrets vbr
     Debug:
-        DEBUG=1 ./gpli "$@"
+        DEBUG='*' ./gpli "$@"
     Debug bash:
-        DEBUG=1 bash -x ./gpli "$@"
+        DEBUG='*' bash -x ./gpli "$@"
     GPL:
         gpli wine 'c:\Sierra\GPL\gpl.exe'
     GPL 67:

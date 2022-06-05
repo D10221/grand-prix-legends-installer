@@ -19,7 +19,7 @@
 #    - bash 'on mac may require `brew install bash`'
 #    - wget
 #    - wine
-#    - md5sum|shasum
+#    - shasum
 #    - udisksctl
 #    - file
 #    - grep
@@ -44,40 +44,57 @@
 # Meta
 VERSION=0.0.1
 _filename=$(basename $0)
-
-GPL_HOME=$HOME/.local/share/grand-prix-legends
-CACHE="$HOME/.cache/grand-prix-legends"
-ISO_URL="https://archive.org/download/grand-prix-legends/GrandPrixLegends.iso"
-ISO=$CACHE/grand-prix-legends.iso
-ISO_MD5="c42ff47a96633e28a6d03afa078b1da2  $ISO"
-ISO_SHASUM="082542e01a9e63c914a8f34f77ee306531a2aa13  $ISO"
-ISO_NAME="$(basename $ISO)"
-# Global mounting point, to use by 'mount', NOT by 'udisksctl'
-ISO_MOUNTING_POINT="/mnt/$ISO_NAME"
-INSTALLER_URL="http://gem.grandprixlegends.info/gplinstall_beta_1.08.exe"
-INSTALLER="$CACHE/gplinstall_beta_1.08.exe"
-INSTALLER_MD5="dd5b2a23b224dcf553ff7bac9082b045  $INSTALLER"
-INSTALLER_SHASUM="5223d8e8c577ec4504fc8c9491b03c61710af263  $INSTALLER"
-INSTALLER_LOG="$HOME/$(basename $INSTALLER).log"
-GEM_URL="http://gem.grandprixlegends.info/GEM/GEMPackage_2.5.0.32.exe"
-GEM="$CACHE/GEMPackage_2.5.0.32.exe"
-GEM_MD5="d82cd2428ce28081a4dca6f3e395e95a  $GEM"
-GEM_SHASUM="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM"
-GEM_LOG="$HOME/$(basename $GEM).log"
-ISO_DEVICE="/dev/disk/by-label/GPL"
-# wine
-WINE="$(which wine)"
-WINEPREFIX="$GPL_HOME/pfx"
-DRIVE_C="$WINEPREFIX/drive_c"
-WIN_VERSION="win7"
-# use find?
-GPL_EXE="$WINEPREFIX/drive_c/Sierra/GPL/gpl.exe"
-GEM_EXE="$WINEPREFIX/drive_c/GPLSecrets/GEM+/GEMP2.exe"
-# vb
+#
+# debug
+# Set debug to glob * to see all , or enable by func name
+#
+debug() {
+    local caller="${FUNCNAME[1]}" # caller function name
+    case "$caller" in
+    $DEBUG)
+        echo -e "\e[35m$_filename/$caller: $@\e[0m" >&2
+        ;;
+    esac
+}
+#
+# error echoes to stderr
+#
+error() { echo -e "\e[31m$_filename/${FUNCNAME[1]}: $@\e[0m" >&2; }
+#
+# warn
+#
+warn() { echo -e "\e[33m$_filename/${FUNCNAME[1]}: $@\e[0m" >&2; }
+#
+# info
+#
+info() { echo -e "\e[32m$_filename/${FUNCNAME[1]}: $@\e[0m" >&2; }
+#
+debug "GPL_HOME=${GPL_HOME:="$HOME/.local/share/grand-prix-legends"}" # target installation root
+debug "CACHE=${CACHE:="$HOME/.cache/grand-prix-legends"}"             # where to save the downloads
+# GPL disc ISO
+debug "GPL_ISO_URL=${GPL_ISO_URL:="https://archive.org/download/grand-prix-legends/GrandPrixLegends.iso"}"
+debug "GPL_ISO=${GPL_ISO:=$CACHE/grand-prix-legends.iso}"
+debug "GPL_ISO_SHA=${GPL_ISO_SHA:="082542e01a9e63c914a8f34f77ee306531a2aa13  $GPL_ISO"}"
+debug "GPL_ISO_MNT_POINT=${GPL_ISO_MNT_POINT:="/mnt/$(basename $GPL_ISO)"}" # Global mounting point, to use by 'mount', NOT by 'udisksctl'
+debug "GPL_ISO_LABEL=${GPL_ISO_LABEL:="GPL"}"
+# GPL installer
+debug "GPL_INSTALLER_URL=${GPL_INSTALLER_URL:="http://gem.grandprixlegends.info/gplinstall_beta_1.08.exe"}"
+debug "GPL_INSTALLER_EXE=${GPL_INSTALLER_EXE:="$CACHE/gplinstall_beta_1.08.exe"}"
+debug "GPL_INSTALLER_EXE_SHASUM=${GPL_INSTALLER_EXE_SHASUM:="5223d8e8c577ec4504fc8c9491b03c61710af263  $GPL_INSTALLER_EXE"}"
+# GEM+ Installer
+debug "GEM_PACKAGE_URL=${GEM_PACKAGE_URL:="http://gem.grandprixlegends.info/GEM/GEMPackage_2.5.0.32.exe"}"
+debug "GEM_PACKAGE_EXE=${GEM_PACKAGE_EXE:="$CACHE/GEMPackage_2.5.0.32.exe"}"
+debug "GEM_PACKAGE_EXE_SHA=${GEM_PACKAGE_EXE_SHA:="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM_PACKAGE_EXE"}"
 # VB Community Runtime 1.00
-VB_RUNTIME_URL='https://www.vb-paradise.de/index.php/Attachment/27536-vbcrt-zip/?s=a4f2f3891cbdcc314f7a2a2dd5b5338e22d42441'
-VB_RUNTIME_ZIP="$CACHE/VBCommunityRuntime1.00.zip"
-VB_RUNTIME_EXE="$CACHE/VB Community Runtime 1.00.exe"
+debug "VB_RUNTIME_URL=${VB_RUNTIME_URL:='https://www.vb-paradise.de/index.php/Attachment/27536-vbcrt-zip/?s=a4f2f3891cbdcc314f7a2a2dd5b5338e22d42441'}"
+debug "VB_RUNTIME_ZIP=${VB_RUNTIME_ZIP:="$CACHE/VBCommunityRuntime1.00.zip"}"
+debug "VB_RUNTIME_ZIP_SHA=${VB_RUNTIME_ZIP_SHA:="eb2c4ecf6057c1b9c27e236b63511785da1d89b0  $VB_RUNTIME_ZIP"}"
+debug "VB_RUNTIME_EXE=${VB_RUNTIME_EXE:="$CACHE/VB Community Runtime 1.00.exe"}"
+# wine
+debug "WINE=${WINE:="$(which wine)"}"
+debug "WINEPREFIX=${WINEPREFIX:="$GPL_HOME/pfx"}"
+debug "WIN_VERSION=${WIN_VERSION:="win7"}"
+DRIVE_C="$WINEPREFIX/drive_c"
 # OSTYPE
 OS_LINUX='linux'
 OS_DARWIN='darwin'
@@ -85,9 +102,11 @@ OS_WSL='wsl'
 OS=''
 case "$OSTYPE" in
 linux*)
-    OS=$OS_LINUX
+    # linux variants
     if [ ! -z "$WSL_DISTRO_NAME" ] || [[ $(uname -r) =~ "-microsoft-" ]]; then
         OS=$OS_WSL
+    else
+        OS=$OS_LINUX
     fi
     ;;
 darwin*)
@@ -98,42 +117,10 @@ darwin*)
     exit 1
     ;;
 esac
-#
-# error echoes to stderr
-#
-error() {
-    echo -e "\e[31m$_filename/${FUNCNAME[1]}: $@\e[0m" >&2
-}
-#
-# debug
-#
-debug() {
-    if [ ! -z "$DEBUG" ]; then
-        echo -e "\e[35m$_filename/${FUNCNAME[1]}: $@\e[0m"
-    fi
-}
-#
-# warn
-#
-warn() {
-    echo -e "\e[33m$_filename/${FUNCNAME[1]}: $@\e[0m"
-}
-#
-# info
-#
-info() {
-    echo -e "\e[32m$_filename/${FUNCNAME[1]}: $@\e[0m"
-}
-#
-# SUDO
-#
-Sudo() {
-    if ! [[ "$EUID" -eq 0 ]]; then
-        echo 'sudo'
-    else
-        echo ''
-    fi
-}
+# WSL
+if [ $OS == $OS_WSL ]; then
+    debug "WSLDRIVE=${WSLDRIVE:="d"}"
+fi
 #
 # Download url
 # creates target directory
@@ -152,22 +139,18 @@ download() {
 #
 # Args:
 #   $1  'file'
-#   $2  'md5sum' set to
-#   $3  'shasum'
+#   $2  'shasum sha'
 #
 verify() {
-    if [ -z "$2" ] && [ -z "$3" ]; then
+    if [ -z "$2" ]; then
         return 0 # disabled
     fi
     local actual=""
     if [ ! -z "$(which shasum)" ]; then
         actual="$(shasum $1)"
-        expected=$3
-    elif [ ! -z "$(which md5sum)" ]; then
-        actual="$(md5sum $1)"
         expected=$2
     else
-        error "Can't verify $1"
+        error "Can't find shasum to verify $1"
         return 1
     fi
     if [ "$actual" != "$expected" ]; then
@@ -179,17 +162,16 @@ verify() {
     return 0
 }
 #
-# try find backing file for device
+# try find backing file used by udisksctl for device
 # Args:
-#   $1 $ISO_DEVICE
+#   $1 'label'
 # Returns:
 #   string or error
 #
-userMountBackingFile() {
-    local USER_MOUNT_BACKING_FILE=""
-    local UDISKSCTL_INFO=$(udisksctl info -b "$1" | grep BackingFile)
+udisksctl:info:BackingFile() {
+    local UDISKSCTL_INFO_BACKING_FILE=$(udisksctl info -b "/dev/disk/by-label/$1" | grep BackingFile)
     local r="\s+BackingFile:\s+(.*)"
-    if [[ "$UDISKSCTL_INFO" =~ $r ]]; then
+    if [[ "$UDISKSCTL_INFO_BACKING_FILE" =~ $r ]]; then
         echo "${BASH_REMATCH[1]}"
     else
         return 1
@@ -198,42 +180,35 @@ userMountBackingFile() {
 UNMOUNT=0
 #
 # mount ISO without sudo
+# Args:
+#   $1  'ISO'
+#   $2  'LABEL'
 #
-userMount() {
+Mount:udisksctl() {
     if [[ $NOUSERMOUNT -eq 1 ]]; then # debug
         return 1                      # not unmounted
     fi
     # get the device backing file
-    USER_MOUNT_BACKING_FILE="$(userMountBackingFile $ISO_DEVICE)"
+    local USER_MOUNT_BACKING_FILE="$(udisksctl:info:BackingFile $2)"
     # already mounted?
-    if [ -f "$USER_MOUNT_BACKING_FILE" ] && [ $USER_MOUNT_BACKING_FILE == $ISO ]; then
+    if [ -f "$USER_MOUNT_BACKING_FILE" ] && [ $USER_MOUNT_BACKING_FILE == $1 ]; then
         UNMOUNT=0
         return 0
-    elif udisksctl loop-setup -f $ISO; then
+    elif udisksctl loop-setup -f $1; then
         UNMOUNT=1
+        debug "Mounted '$1'"
         return 0 # mounted
     else
         return 1 # failed
     fi
 }
 #
-# unmount ISO without sudo
-#
-userUnmount() {
-    if [[ $NOUSERMOUNT -eq 1 ]]; then
-        return 1
-    fi
-    if ! udisksctl unmount -b $ISO_DEVICE; then
-        return 1
-    fi
-}
-#
 # Args:
 #       $1  'Drive Letter'
 #
-validWslDrive() {
+wsl:drive:valid() {
     if [ -z "$1" ]; then
-        error "wsldrive is required to mount $ISO_NAME, relaunch with --nomount OR --wsldrive='<drive>', see --help for more"
+        error "wsldrive is required to mount $(basename $GPL_ISO), relaunch with --nomount OR --wsldrive='<drive>', see --help for more"
         return 1 # failed
     fi
     if ! [[ "$1" =~ ^[a-zA-Z]$ ]]; then
@@ -241,44 +216,60 @@ validWslDrive() {
         return 1 # failed
     fi
 }
-WINE_DRIVE=${WINE_DRIVE:-"d"}
 #
 # mount ISO with 'mount' , needs root
+# Args:
+#   $1  'GPL_ISO'
+#   $2  'GPL_ISO_MNT_POINT'
+#   $3  'WSLDRIVE'
 #
 Mount() {
     if [[ $NOROOTMOUNT -eq 1 ]]; then # debug
         return 1                      # failed
     fi
     # if not mounted
-    if [ -z "$(mount | grep $ISO_NAME)"]; then
-        info "Mounting '$ISO_NAME' into '$ISO_MOUNTING_POINT'"
+    if [ -z "$(mount | grep $(basename "$1"))" ]; then
+        info "Mounting '$(basename "$1")' into '$2'"
         if [ $OS == $OS_WSL ]; then
             # Mounting in WSL is different
-            if ! validWslDrive $WSLDRIVE; then
-                warn "WSLDRIVE '$WSLDRIVE' is not valid, using 'D:'"
+            if ! wsl:drive:valid $3; then
+                warn "wsl drive '$3' is not valid, using 'd:'"
                 return 1 # failed
             fi
-            if ! validWslDrive $WINE_DRIVE; then
-                warn "WINE_DRIVE '$WINE_DRIVE' is not valid, using '$WSLDRIVE' from WSLDRIVE"
-                WINE_DRIVE=WSLDRIVE
+            local WINE_DRIVE="$3"
+            if ! wsl:drive:valid "$3"; then
+                warn "WINE_DRIVE '$3' is not valid, using '$3'"
+                WINE_DRIVE="d"
             fi
-            if "$(Sudo)" mkdir -p "$ISO_MOUNTING_POINT" &&
-                "$(Sudo)" mount -t drvfs "$WSLDRIVE:" "$ISO_MOUNTING_POINT"; then
+            if sudo mkdir -p "$2" &&
+                sudo mount -t drvfs "$WINE_DRIVE:" "$2"; then
                 # create simlink in pfx/dosdevices/d:
-                if ln -s "$ISO_MOUNTING_POINT" "$WINEPREFIX/dosdevices/$WINE_DRIVE:"; then # or wine doesn't see it
-                    UNMOUNT=1                                                              # OK, flag unmount
+                if ln -s "$2" "$WINEPREFIX/dosdevices/$WINE_DRIVE:"; then # or wine doesn't see it
+                    UNMOUNT=1                                             # OK, flag unmount
                 fi
             else
                 return 1 # failed
             fi
         else
             # mounting on linux
-            if "$(Sudo)" mkdir -p "$ISO_MOUNTING_POINT" &&
-                "$(Sudo)" mount -o ro,loop "$ISO" "$ISO_MOUNTING_POINT"; then
+            if [ ! -d "$2" ]; then
+                if ! mkdir -p "$2"; then
+                    debug "mount point '$2' is not a directory .. trying with sudo"
+                    if ! sudo mkdir -p "$2"; then
+                        error "failed to create mount point '$2'"
+                        return 1
+                    fi
+                fi
+            fi
+            if ! mount -o ro,loop "$1" "$2"; then # try mount
+                debug "trying to mount '$1' with sudo"
+                if ! sudo mount -o ro,loop "$1" "$2"; then # try mount with superuser
+                    error "Failed to mount '$1'"
+                    return 1
+                fi
                 #OK
-                UNMOUNT=1 # flag unmount
-            else
-                return 1 # failed
+                debug "mounted $1"
+                UNMOUNT=1 # flag unmountMount
             fi
         fi
     else
@@ -286,96 +277,123 @@ Mount() {
     fi
 }
 #
-# unmount ISO_MOUNTING_POINT , needs root
-#
-Unmount() {
-    if ! [[ $UNMOUNT -eq 1 ]]; then
-        return 0 # not mounted
-    fi
-    local SUDO="$(Sudo)"
-    if ! $SUDO umount "$ISO_MOUNTING_POINT"; then
-        error "'$SUDO umount $ISO_MOUNTING_POINT' failed"
-        return 1 # fail
-    fi
-}
-#
 # try un mount iso if it was mounted
 # by $OS
+# Args:
+#   $1  'ISO'
+#   $2  'Label'
+#   $3  'GPL_ISO_MNT_POINT'
+#   $4  'WSLDRIVE'
 #
-tryMount() {
+Mount:try() {
     if [[ $NOMOUNT -eq 1 ]]; then
         # --nomount?
         return 0
     fi
-    debug "Mounting '$ISO_NAME'"
+    debug "Mounting '$(basename $1)'"
     # by os
     case $OS in
     $OS_DARWIN)
-        if hdiutil mount "$ISO"; then
-            debug "$ISO_NAME '$OS' 'Mounted' by hdiutil"
+        if hdiutil mount "$1"; then
+            debug "$(basename "$1") '$OS' 'Mounted' by hdiutil"
             UNMOUNT=1
             return 0
         fi
         ;;
     $OS_LINUX)
-        # try to mount without priviledge
-        if userMount; then
-            debug "$ISO_NAME '$OS' 'Mounted' by 'userMount'"
+        # try to mount with udisksctl in user space
+        if Mount:udisksctl "$1" "$2"; then
             return 0
         fi
-        # mount with sudo
-        if Mount; then
-            debug "$ISO_NAME '$OS' 'Mounted' by 'Mount'"
+        # mount using mount, may need root
+        if Mount "$1" "$3" "$4"; then
             return 0
         fi
         ;;
     $OS_WSL)
-        if Mount; then
-            debug "$ISO_NAME '$OS' 'Mounted' by 'Mount'"
+        if Mount "$1" "$3" "$4"; then
+            debug "$(basename "$1") '$OS' 'Mounted' by 'Mount'"
             UNMOUNT=1
             return 0
         fi
         ;;
     *)
-        error "Mount '$ISO_NAME' on '$OS' in not implemented"
+        error "Mount '$(basename "$1")' on '$OS' in not implemented"
         return 1 #failed
         ;;
     esac
     # Failed
-    msg="'$OS': Unable to mount '$ISO_NAME'\n"
-    msg+=" You will need to mount '$ISO'\n"
+    msg="'$OS': Unable to mount '$(basename $1)'\n"
+    msg+=" You will need to mount '$1'\n"
     msg+=" Or load the Disc your self.\n"
-    msg+=" Relaunch with '--nomount' option to skip this error"
+    msg+=" Relaunch with '--nomount' to skip mounting '$1'"
     error "$msg"
     return 1
 }
 #
+# unmount ISO without sudo
+# Args:
+#   $1  'label'
+#
+Unmount:udisksctl() {
+    if [[ $NOUSERMOUNT -eq 1 ]]; then
+        return 1
+    fi
+    if ! udisksctl unmount -b "/dev/disk/by-label/$1"; then
+        return 1
+    fi
+    debug "unmounted '$1"
+}
+#
+# unmount mount point , needs root
+# Args:
+#   $1  'GPL_ISO_MNT_POINT'
+#
+Unmount() {
+    debug "Begin Unmount GPL_ISO_MNT_POINT='$1'"
+    if ! [[ $UNMOUNT -eq 1 ]]; then
+        return 0 # not mounted
+    fi
+    if ! umount "$1"; then
+        if ! sudo umount "$1"; then
+            error "'$SUDO umount $1' failed"
+            return 1 # fail
+        fi
+    fi
+    debug "Unmounted $1"
+}
+#
 # try un unmount iso if it was mounted
 # by $OS
+# Args:
+#   $1  'ISO'
+#   $2  'label'
+#   $3  'GPL_ISO_MNT_POINT'
 #
-tryUnmount() {
+Unmount:try() {
     if [[ $UNMOUNT -eq 1 ]]; then
-        debug "unmounting $ISO_NAME"
+        debug "unmounting $(basename "$1")"
         if [ $OS == $OS_DARWIN ]; then
-            hdiutil unmount /Volumes/GPL
-            # debug "'$OS' '$ISO_NAME' unmounted by 'hdiutil'"
+            hdiutil unmount /Volumes/$2
+            # debug "'$OS' '$(basename $GPL_ISO)' unmounted by 'hdiutil'"
         elif [ $OS == $OS_LINUX ]; then
-            if ! userUnmount; then
-                if ! Unmount; then
-                    return 1 # failed
-                fi
+            if Unmount:udisksctl "$2"; then
+                return 0
             fi
-            debug "'$OS' '$ISO_NAME' unmounted by 'udisksctl'"
+            if Unmount "$3"; then
+                return 0
+            fi
+            return 1
         elif [ $OS == $OS_WSL ]; then
-            if ! Unmount; then
+            if ! Unmount "$3"; then
                 if ! rm "$WINE_DRIVE_PATH"; then
                     warn "Failed to remove '$WINE_DRIVE_PATH'"
                     return 1 # failed
                 fi
             fi
-            debug "'$OS' '$ISO_NAME' unmounted by 'unmount'"
+            debug "'$OS' '$(basename "$1")' unmounted by 'unmount'"
         else
-            error "Unmounting $ISO on $OS is not implemented"
+            error "Unmounting $1 on $OS is not implemented"
         fi
     fi
 }
@@ -384,8 +402,7 @@ tryUnmount() {
 # Args:
 #   $1  'file' local name, full path
 #   $2  'url'
-#   $3  'md5'
-#   $4  'sha'
+#   $3  'sha'
 #
 get() {
     if ! download $1 $2; then
@@ -393,8 +410,8 @@ get() {
         return 1
     fi
     # verify
-    if ! verify $1 "$3" "$4"; then
-        debug "failed to verify '$(basename $1)'"
+    if ! verify $1 "$3"; then
+        error "failed to verify '$(basename $1)'"
         return 1
     fi
 }
@@ -431,22 +448,22 @@ Install() {
             -*) ;; # skip options
             gpl)
                 # get GPL ISO installer, download if not in cache
-                if ! get "$ISO" "$ISO_URL" "$ISO_MD5" "$ISO_SHASUM"; then
+                if ! get "$GPL_ISO" "$GPL_ISO_URL" "$GPL_ISO_SHA"; then
                     return 1
                 fi
                 # get GPL installer, download if not in cache
-                if ! get "$INSTALLER" "$INSTALLER_URL" "$INSTALLER_MD5" "$INSTALLER_SHASUM"; then
+                if ! get "$GPL_INSTALLER_EXE" "$GPL_INSTALLER_URL" "$GPL_INSTALLER_EXE_SHASUM"; then
                     return 1
                 fi
                 # try mount ISO, required by GPL installer
                 local mounted=0
-                if tryMount; then
+                if Mount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
                     mounted=1
                 fi
                 #  GPL installer needs the CD
                 if [[ $mounted -eq 1 ]]; then
                     debug "Running GPL installer"
-                    if runExe "$INSTALLER"; then
+                    if runExe "$GPL_INSTALLER_EXE"; then
                         GPL_INSTALLED=1
                         debug "installed GPL"
                     else
@@ -456,49 +473,57 @@ Install() {
                     error "Can't install GPL"
                 fi
                 # try Unmount ISO
-                tryUnmount
+                if ! Unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT"; then
+                    error "Failed to unmount "$GPL_ISO_LABEL" "$GPL_ISO""
+                fi
                 ;;
             gem)
                 debug "installing GEM"
                 # get GEM installer  download if not in cache
-                if get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
+                if get "$GEM_PACKAGE_EXE" "$GEM_PACKAGE_URL" "$GEM_PACKAGE_EXE_SHA"; then
                     debug "Runnig GEM installer"
-                    if runExe "$GEM"; then
+                    if runExe "$GEM_PACKAGE_EXE"; then
                         GEM_INSTALLED=1
-                        debug "installed GEM?"
+                        debug "installed GEM+?"
                     else
-                        debug "failed to install GEM"
+                        debug "failed to install GEM+"
                     fi
                 fi
                 ;;
             gplsecrets)
-                # Unpack GEM: into drive c:\
+                # Unpack GEM+ into drive c:\
                 # prefix breaks when installing GEM+ with the installer
-                # try unpack required files
-                # WARN: 'GPLPatchDLL.dll must be included and extracted into syswow64?'
-                # and the VB runtime after!
-                if get "$GEM" "$GEM_URL" "$GEM_MD5" "$GEM_SHASUM"; then
-                    # get GEM installer  download if not in cache
-                    local GPLSecrets="$DRIVE_C/GPLSecrets"
+                if get "$GEM_PACKAGE_EXE" "$GEM_PACKAGE_URL" "$GEM_PACKAGE_EXE_SHA"; then
+                    # get GEM+ installer  download if not in cache
                     if [ ! -d "$DRIVE_C" ]; then
                         if ! createPrefix; then
                             debug "Failed to create prefix: $WINEPREFIX"
                             return 1
                         fi
                     fi
-                    if ! innoextract "$GEM" -d "$DRIVE_C/gplsecrets" -s; then
-                        error "failed to 'innoextract' '$(basename $GPLSecrets)'"
+                    if [ -z "$(which innoextract)" ]; then
+                        error "Can't find 'innoextract', install innoextract and try again"
                     else
-                        info "innoextracted '$(basenameNoExtension $GEM)' into '$GPLSecrets'"
-                        if ! cp "$DRIVE_C/gplsecrets/syswow64/GPLPatchDLL.dll" "$DRIVE_C/windows/syswow64/"; then
-                            warn "Failed to copy GPLPatchDLL.dll to windows/syswow64"
-                            warn "GEMP2.exe might not work"
+                        local GPLSecrets="$DRIVE_C/GPLSecrets"
+                        #
+                        # if [ -d $GPLSecrets ] return 1
+                        # mkdir $DRIVE_C/temp && innoextract "$GEM_PACKAGE_EXE" -d "$DRIVE_C/temp/gplsecrets" -s
+                        #   && mv "$DRIVE_C/temp/gplsecrets/app"  "$GPLSecrets"
+                        #
+                        if ! innoextract "$GEM_PACKAGE_EXE" -d "$DRIVE_C/gplsecrets" -s; then
+                            error "failed to extract '$(basename $GPLSecrets)'"
+                        else
+                            info "extracted '$(basenameNoExtension $GEM_PACKAGE_EXE)' into '$GPLSecrets'"
+                            if ! cp "$DRIVE_C/gplsecrets/syswow64/GPLPatchDLL.dll" "$DRIVE_C/windows/syswow64/"; then
+                                warn "Failed to copy GPLPatchDLL.dll to windows/syswow64"
+                                warn "GEMP2.exe might not work"
+                            fi
                         fi
                     fi
                 fi
                 ;;
             vbr)
-                if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL"; then
+                if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL" "$VB_RUNTIME_ZIP_SHA"; then
                     if Unzip "$VB_RUNTIME_ZIP" "$CACHE"; then
                         # unzipped to cache
                         debug "Running VB Runtime Installer"
@@ -519,7 +544,7 @@ Install() {
                 ;;
             esac
         done
-    fi   
+    fi
 }
 #
 # Args:
@@ -606,6 +631,7 @@ remove() {
 #   '$@' [gpl,gem]
 #
 uninstall() {
+    warn "this tool doesn't uninstall but removes the target"
     if [[ $# -lt 1 ]]; then
         error "expected args"
         return 1
@@ -613,11 +639,13 @@ uninstall() {
         for a in $@; do
             case "$a" in
             gpl)
+                local GPL_EXE="$WINEPREFIX/drive_c/Sierra/GPL/gpl.exe"
                 local DIR=$(dirname $GPL_EXE)
                 remove 'GPL' "$DIR"
                 ;;
 
             gem)
+                local GEM_EXE="$WINEPREFIX/drive_c/GPLSecrets/GEM+/GEMP2.exe"
                 local DIR=$(dirname $GEM_EXE)
                 remove 'GEM+' "$DIR"
                 ;;
@@ -626,6 +654,9 @@ uninstall() {
                 ;;
             pfx)
                 remove 'prefix' "$WINEPREFIX"
+                ;;
+            cache)
+                remove 'cache' "$CACHE"
                 ;;
             *)
                 error "Can't remove '$a'"
@@ -652,15 +683,15 @@ Open() {
 Launch() {
     case "$1" in
     gpl)
-        runWithPrefix "$WINE" start 'c:\sierra\GPL\gpl.exe' /d 'c:\sierra\GPL'
+        runWithPrefix "$WINE" start 'c:\sierra\GPL\gpl.exe' /d 'c:\sierra\GPL' # /wait
         ;;
     gpl67)
-        runWithPrefix "$WINE" 'c:\sierra\GPL\gplc67.exe' /d 'c:\sierra\GPL'
+        runWithPrefix "$WINE" start 'c:\sierra\GPL\gplc67.exe' /d 'c:\sierra\GPL' # /wait
         ;;
     gem+)
         # TODO: use find -> winepath ?
-        if ! runWithPrefix "$WINE" 'c:\GPLSecrets\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
-            if ! runWithPrefix "$WINE" 'c:\gplsecrets\app\GEM+\GEMP2.exe'; then
+        if ! runWithPrefix "$WINE" start 'c:\GPLSecrets\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
+            if ! runWithPrefix "$WINE" start 'c:\gplsecrets\app\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
                 error "Can't find or open GEMP2.exe"
             fi
         fi
@@ -732,7 +763,7 @@ usage() {
     echo " NOUSERMOUNT     'Do not try to mount ISO in userspace'"
     echo " NOROOTMOUNT     'Do not try to mount ISO if requires root access"
     echo " DEBUG           'show debug info'"
-    echo "                  example '\$ DEBUG=1 ./gpli.local install'"
+    echo "                  example '\$ DEBUG='*' ./gpli.local install'"
     if [ $OS == $OS_WSL ]; then
         echo " WSLDRIVE        'show debug info'"
         echo "    desc:        'drive letter to mount in wsl environment'"
@@ -766,7 +797,7 @@ option() {
         ;;
     wsldrive)
         WSLDRIVE="$2"
-        if ! validWslDrive $WSLDRIVE; then
+        if ! wsl:drive:valid $WSLDRIVE; then
             exit 1
         fi
         ;;
@@ -850,5 +881,4 @@ launch)
     error "Unkown verb:'$1'"
     exit 1
     ;;
-
 esac

@@ -22,4 +22,4 @@ Vars:
  NOUSERMOUNT     'Do not try to mount ISO in userspace'
  NOROOTMOUNT     'Do not try to mount ISO if requires root access
  DEBUG           'show debug info'
-                  example '$ DEBUG=1 ./gpli.local install'
+                  example '$ DEBUG='*' ./gpli.local install'
