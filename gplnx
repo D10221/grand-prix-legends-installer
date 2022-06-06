@@ -228,7 +228,11 @@ mount:mnt:wsl() {
         return 1 # failed
     fi
     # create simlink in pfx/dosdevices/d:
-    ln -s "$2" "$WINEPREFIX/dosdevices/$3:" # or wine doesn't see it
+    # or wine doesn't see it
+    if ! ln -s "$2" "$WINEPREFIX/dosdevices/$3:"; then
+        warn "failed to link  "$2" to "$WINEPREFIX/dosdevices/$3:""
+    fi
+    debug "mounted '$1'"
 }
 #
 # mount ISO with 'mount' , needs root
@@ -286,8 +290,8 @@ mount:try() {
     case $OS in
     $OS_DARWIN)
         if hdiutil mount "$1"; then
-            debug "$(basename "$1") '$OS' 'Mounted' by hdiutil"
             UNMOUNT=1
+            debug "mounted $1"
             return 0
         fi
         ;;
@@ -309,17 +313,17 @@ mount:try() {
         # mount using mount, may need root
         if mount:mnt:ismounted "$1"; then
             # OK: but do not unmount
+            debug "already mounted '$1'?"
             return 0
         fi
         if mount:mnt:wsl "$1" "$3" "$4"; then
             local ret=$?
-            debug "$(basename "$1") '$OS' 'Mounted' by 'mount:mnt'"
             UNMOUNT=1
             return $ret
         fi
         ;;
     *)
-        error "mount '$(basename "$1")' on '$OS' in not implemented"
+        error "mount '$1' on '$OS' in not implemented"
         return 1 #failed
         ;;
     esac
@@ -478,12 +482,11 @@ install:gem() {
                     error "failed to extract '$GEM_PACKAGE_EXE'"
                     return 1
                 fi
-                debug "extracted $GEM_PACKAGE_EXE into '$GPLSecrets'"
+                info "Extracted '$GEM_PACKAGE_EXE' into '$GPLSecrets'"
                 if ! cp "$GPLSecrets/syswow64/GPLPatchDLL.dll" "$DRIVE_C/windows/syswow64/"; then
                     warn "Failed to move GPLPatchDLL.dll to windows/syswow64"
                     warn "GEMP2.exe might not work"
                 fi
-                info "Extracted $GEM_PACKAGE_EXE into $GPLSecrets"
             fi
             ;;
         h)
@@ -532,8 +535,10 @@ install:gpl() {
         error "Failed to install GPL"
     fi
     # try unmount:mnt ISO
-    if [[ $UNMOUNT -eq 1 ]] && ! unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
-        error "Failed to unmount "$GPL_ISO_LABEL" "$GPL_ISO""
+    if [[ $UNMOUNT -eq 1 ]]; then
+        if ! unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
+            error "Failed to unmount "$GPL_ISO_LABEL" "$GPL_ISO""
+        fi
     fi
 }
 #
