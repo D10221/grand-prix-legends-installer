@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Grand Prix Legends Linux
+# Grand Prix Legends Linux Install tool
 # ## Desc:
 #   Creates wine prefix, mounts iso, downloads and runs the GPL, GEM+ and  Visual Basic runtime installers
 # ## Works on:
@@ -179,7 +179,7 @@ UNMOUNT=0
 #   $1  'ISO'
 #   $2  'LABEL'
 #
-Mount:udisksctl() {
+mount:udisksctl() {
     if [[ $NOUSERMOUNT -eq 1 ]]; then # debug
         return 1                      # not unmounted
     fi
@@ -199,7 +199,7 @@ Mount:udisksctl() {
 }
 #
 # Args:
-#       $1  'Drive Letter'
+#   $1  'Drive Letter'
 #
 wsl:drive:valid() {
     if [ -z "$1" ]; then
@@ -214,11 +214,11 @@ wsl:drive:valid() {
 #
 # mount ISO with 'mount' , needs root
 # Args:
-#   $1  'GPL_ISO'
-#   $2  'GPL_ISO_MNT_POINT'
-#   $3  'WSLDRIVE'
+#   $1  'ISO'
+#   $2  'mount point'
+#   $3  'wsl drive'
 #
-Mount() {
+mount:mnt() {
     if [[ $NOROOTMOUNT -eq 1 ]]; then # debug
         return 1                      # failed
     fi
@@ -280,7 +280,7 @@ Mount() {
 #   $3  'GPL_ISO_MNT_POINT'
 #   $4  'WSLDRIVE'
 #
-Mount:try() {
+mount:try() {
     if [[ $NOMOUNT -eq 1 ]]; then
         # --nomount?
         return 0
@@ -297,23 +297,23 @@ Mount:try() {
         ;;
     $OS_LINUX)
         # try to mount with udisksctl in user space
-        if Mount:udisksctl "$1" "$2"; then
+        if mount:udisksctl "$1" "$2"; then
             return 0
         fi
         # mount using mount, may need root
-        if Mount "$1" "$3" "$4"; then
+        if mount:mnt "$1" "$3" "$4"; then
             return 0
         fi
         ;;
     $OS_WSL)
-        if Mount "$1" "$3" "$4"; then
-            debug "$(basename "$1") '$OS' 'Mounted' by 'Mount'"
+        if mount:mnt "$1" "$3" "$4"; then
+            debug "$(basename "$1") '$OS' 'Mounted' by 'mount:mnt'"
             UNMOUNT=1
             return 0
         fi
         ;;
     *)
-        error "Mount '$(basename "$1")' on '$OS' in not implemented"
+        error "mount:mnt '$(basename "$1")' on '$OS' in not implemented"
         return 1 #failed
         ;;
     esac
@@ -330,7 +330,7 @@ Mount:try() {
 # Args:
 #   $1  'label'
 #
-Unmount:udisksctl() {
+unmount:udisksctl() {
     if [[ $NOUSERMOUNT -eq 1 ]]; then
         return 1
     fi
@@ -344,13 +344,12 @@ Unmount:udisksctl() {
 # Args:
 #   $1  'GPL_ISO_MNT_POINT'
 #
-Unmount() {
-    debug "Begin Unmount GPL_ISO_MNT_POINT='$1'"
+unmount:mnt() {
     if ! [[ $UNMOUNT -eq 1 ]]; then
         return 0 # not mounted
     fi
-    if ! umount "$1"; then
-        if ! sudo umount "$1"; then
+    if ! umount "$1"; then          # try , maybe you have rights
+        if ! sudo umount "$1"; then # try with sudo
             error "'$SUDO umount $1' failed"
             return 1 # fail
         fi
@@ -365,22 +364,22 @@ Unmount() {
 #   $2  'label'
 #   $3  'GPL_ISO_MNT_POINT'
 #
-Unmount:try() {
+unmount:try() {
     if [[ $UNMOUNT -eq 1 ]]; then
         debug "unmounting $(basename "$1")"
         if [ $OS == $OS_DARWIN ]; then
             hdiutil unmount /Volumes/$2
             # debug "'$OS' '$(basename $GPL_ISO)' unmounted by 'hdiutil'"
         elif [ $OS == $OS_LINUX ]; then
-            if Unmount:udisksctl "$2"; then
+            if unmount:udisksctl "$2"; then
                 return 0
             fi
-            if Unmount "$3"; then
+            if unmount:mnt "$3"; then
                 return 0
             fi
             return 1
         elif [ $OS == $OS_WSL ]; then
-            if ! Unmount "$3"; then
+            if ! unmount:mnt "$3"; then
                 if ! rm "$WINE_DRIVE_PATH"; then
                     warn "Failed to remove '$WINE_DRIVE_PATH'"
                     return 1 # failed
@@ -436,7 +435,7 @@ install:gem() {
             # get GEM installer  download if not in cache
             if get "$GEM_PACKAGE_EXE" "$GEM_PACKAGE_URL" "$GEM_PACKAGE_EXE_SHA"; then
                 debug "Runnig GEM+ installer"
-                if runExe "$GEM_PACKAGE_EXE"; then
+                if run:exe "$GEM_PACKAGE_EXE"; then
                     GEM_INSTALLED=1
                     debug "installed GEM+?"
                 else
@@ -450,7 +449,7 @@ install:gem() {
             if get "$GEM_PACKAGE_EXE" "$GEM_PACKAGE_URL" "$GEM_PACKAGE_EXE_SHA"; then
                 # get GEM+ installer  download if not in cache
                 if [ ! -d "$DRIVE_C" ]; then
-                    if ! createPrefix; then
+                    if ! create:pfx; then
                         debug "Failed to create prefix: $WINEPREFIX"
                         return 1
                     fi
@@ -460,12 +459,12 @@ install:gem() {
                     return 1
 
                 fi
-                local GPLSecrets="$DRIVE_C/GPLSecrets"               
+                local GPLSecrets="$DRIVE_C/GPLSecrets"
                 if ! innoextract "$GEM_PACKAGE_EXE" -d "$GPLSecrets" -s; then
                     error "failed to extract '$GEM_PACKAGE_EXE'"
                     return 1
                 fi
-                debug "extracted $GEM_PACKAGE_EXE into '$GPLSecrets'"             
+                debug "extracted $GEM_PACKAGE_EXE into '$GPLSecrets'"
                 if ! cp "$GPLSecrets/syswow64/GPLPatchDLL.dll" "$DRIVE_C/windows/syswow64/"; then
                     warn "Failed to move GPLPatchDLL.dll to windows/syswow64"
                     warn "GEMP2.exe might not work"
@@ -489,7 +488,7 @@ install:gem() {
     fi
 }
 #
-# Install GPL
+# install GPL
 #
 install:gpl() {
     # get GPL ISO installer, download if not in cache
@@ -502,13 +501,13 @@ install:gpl() {
     fi
     # try mount ISO, required by GPL installer
     local mounted=0
-    if Mount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
+    if mount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
         mounted=1
     fi
     #  GPL installer needs the CD
     if [[ $mounted -eq 1 ]]; then
         debug "Running GPL installer"
-        if runExe "$GPL_INSTALLER_EXE"; then
+        if run:exe "$GPL_INSTALLER_EXE"; then
             GPL_INSTALLED=1
             debug "installed GPL"
         else
@@ -517,20 +516,20 @@ install:gpl() {
     else
         error "Can't install GPL"
     fi
-    # try Unmount ISO
-    if ! Unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT"; then
+    # try unmount:mnt ISO
+    if ! unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT"; then
         error "Failed to unmount "$GPL_ISO_LABEL" "$GPL_ISO""
     fi
 }
 #
-# Install Visual Basic Runtime
+# install Visual Basic Runtime
 #
 install:vbr() {
     if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL" "$VB_RUNTIME_ZIP_SHA"; then
-        if Unzip "$VB_RUNTIME_ZIP" "$CACHE"; then
+        if unzip:to "$VB_RUNTIME_ZIP" "$CACHE"; then
             # unzipped to cache
             debug "Running VB Runtime Installer"
-            if runExe "$VB_RUNTIME_EXE"; then
+            if run:exe "$VB_RUNTIME_EXE"; then
                 VB_RUNTIME_INSTALLED=1
                 info "VB Runtime Installed"
             else
@@ -542,24 +541,28 @@ install:vbr() {
     fi
 }
 #
-# Install
 # Usage:
-#   Install [options] [...selection]
+#   install:selected [options] [...selection]
 # Opts:
-#   -y 'yes' accepts all options , not implemented
+#   -h 'shows usage''
 # Example
 #  'install # gpl'
 #  'install gpl gem vbr'
 #
-Install() {
-    local YES=0
+install:selected() {
+    install:selected:h() {
+        echo "Usage: "
+        echo "  'install [options] [targets]'"
+        echo "Options:"
+        echo "  -h shows this"
+        echo "Targets:"
+        echo "  gpl gem vbr"
+        echo "Example:"
+        echo "  '$_filename install gpl gem vbr'"
+    }
     while getopts ":h" arg; do
         case ${arg} in
-        h)
-            echo "install [options] [target]"
-            echo "Options: -h shows this"
-            echo "Targets: gpl gem vbr"
-            ;;
+        h) h ;;
         *)
             error "Unknown option '$OPTARG'"
             return 1
@@ -568,6 +571,7 @@ Install() {
     done
     if [[ $# -lt 1 ]]; then
         error "Expected args"
+        install:selected:h
         return 1
     else
         for a in $@; do
@@ -598,7 +602,7 @@ Install() {
 #   $1  'zip file'
 #   $2  'target directory'
 #
-Unzip() {
+unzip:to() {
     if [ ! -f "$(which unzip)" ]; then
         error "Can't find 'unzip'"
     fi
@@ -607,17 +611,10 @@ Unzip() {
     return $?
 }
 #
-# get basename without ext
-# ex: basenameNoExtension 'file.zip' '.zip'
-#
-basenameNoExtension() {
-    echo $(basename "$1") | tr -d "$2"
-}
 #
 #
-#
-createPrefix() {
-    if ! runWithPrefix wine winecfg -v "$WIN_VERSION"; then
+create:pfx() {
+    if ! run:on:prefix wine winecfg -v "$WIN_VERSION"; then
         return 1
     else
         debug "Created prefix as '$WIN_VERSION'"
@@ -628,7 +625,7 @@ createPrefix() {
 # Args:
 #   $1 file
 #
-runExe() {
+run:exe() {
     if [ ! -f "$WINE" ]; then
         error "can't find wine, get wine on the \$PATH and try again"
         return 1
@@ -638,9 +635,9 @@ runExe() {
     fi
 }
 #
-# Run cmd on WINEPREFIX env
+# Run cmd on WINEPREFIX
 #
-runWithPrefix() {
+run:on:prefix() {
     if [ ! -f "$WINE" ]; then
         error "can't find wine, get wine on the \$PATH and try again"
         return 1
@@ -654,11 +651,20 @@ runWithPrefix() {
 # Args:
 #   $1  'label'
 #   $2  'target'
+#   $3  'YES'==1
 #
 remove() {
-    warn "Remove '$1' '$2'"
-    read -p "Cannot be undone (y/n)? " u
-    case $u in
+    if [ ! -d "$2" ]; then
+        error "$2 is not a directory"
+        return 1
+    fi
+    warn "Removing '$1' '$2' YES=$3"
+    if [[ $3 -ne 1 ]]; then
+        read -p "Cannot be undone (y/n)? " a
+    else
+        a="y"
+    fi
+    case $a in
     y)
         rm -rf "$2"
         return $?
@@ -673,37 +679,70 @@ remove() {
     esac
 }
 #
-# Uninstall GPL and remove prefix
+# Uninstall removes cache, prefix, gpl or GEM+
 # Args:
-#   '$@' [gpl,gem]
+#   '$@' gpl gem pfx
 #
-uninstall() {
-    warn "this tool doesn't uninstall but removes the target"
+uninstall:selected() {
+    uninstall:selected:h() {
+        echo "$_filename uninstall [options] [selection]"
+        echo "Removes cache, prefix, gpl or GEM+"
+        echo "Options:"
+        echo " -h   'shows this"
+        echo " -y   'answer yes"
+        echo "selection:"
+        echo "  cache, pfx, gpl , gem"
+    }
+    local YES=0
+    while getopts ":hy" arg; do
+        case $arg in
+        h)
+            uninstall:selected:h
+            return 0
+            ;;
+        y)
+            YES=1
+            ;;
+        *)
+            error "Unkown option '$arg'"
+            uninstall:selected:h
+            return 1
+            ;;
+        esac
+    done
     if [[ $# -lt 1 ]]; then
         error "expected args"
+        uninstall:selected:h
         return 1
     else
         for a in $@; do
             case "$a" in
+            -*)
+                # skip options
+                ;;
             gpl)
                 local GPL_EXE="$WINEPREFIX/drive_c/Sierra/GPL/gpl.exe"
                 local DIR=$(dirname $GPL_EXE)
-                remove 'GPL' "$DIR"
+                remove 'GPL' "$DIR" $YES
                 ;;
 
             gem)
                 local GEM_EXE="$WINEPREFIX/drive_c/GPLSecrets/GEM+/GEMP2.exe"
                 local DIR=$(dirname $GEM_EXE)
-                remove 'GEM+' "$DIR"
-                ;;          
+                remove 'GEM+' "$DIR" $YES
+                ;;
             pfx)
-                remove 'prefix' "$WINEPREFIX"
+                remove 'prefix' "$WINEPREFIX" $YES
+                ;;
+            prefix)
+                remove 'prefix' "$WINEPREFIX" $YES
                 ;;
             cache)
-                remove 'cache' "$CACHE"
+                remove 'cache' "$CACHE" $YES
                 ;;
             *)
                 error "Can't remove '$a'"
+                uninstall:selected:h
                 return 1
                 ;;
             esac
@@ -714,7 +753,7 @@ uninstall() {
 #
 # open WINEPREFIX/?
 #
-Open() {
+open:pfx() {
     if [ $OS == $OS_DARWIN ]; then
         open $WINEPREFIX/"$1"
     else
@@ -724,18 +763,18 @@ Open() {
 #
 #
 #
-Launch() {
+launch() {
     case "$1" in
     gpl)
-        runWithPrefix "$WINE" start 'c:\sierra\GPL\gpl.exe' /d 'c:\sierra\GPL' # /wait
+        run:on:prefix "$WINE" start 'c:\sierra\GPL\gpl.exe' /d 'c:\sierra\GPL' # /wait
         ;;
     gpl67)
-        runWithPrefix "$WINE" start 'c:\sierra\GPL\gplc67.exe' /d 'c:\sierra\GPL' # /wait
+        run:on:prefix "$WINE" start 'c:\sierra\GPL\gplc67.exe' /d 'c:\sierra\GPL' # /wait
         ;;
     gem+)
         # TODO: use find -> winepath ?
-        if ! runWithPrefix "$WINE" start 'c:\GPLSecrets\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
-            if ! runWithPrefix "$WINE" start 'c:\GPLSecrets\app\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
+        if ! run:on:prefix "$WINE" start 'c:\GPLSecrets\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
+            if ! run:on:prefix "$WINE" start 'c:\GPLSecrets\app\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
                 error "Can't find or open GEMP2.exe"
             fi
         fi
@@ -744,20 +783,6 @@ Launch() {
         error "Don't how to open '$1'"
         ;;
     esac
-}
-#
-# Args:
-#   $1  'option' ex, 'x=1'
-# Returns:
-#   $2  'value'
-#
-optionValue() {
-    local r="\w+=(.*)"
-    if [[ "$1" =~ $r ]]; then
-        echo "${BASH_REMATCH[1]}"
-    else
-        return 1
-    fi
 }
 #
 # show usage
@@ -775,14 +800,14 @@ usage() {
     echo "          \$gpli install -r gpl # REINSTALL gpl"
     echo "          \$gpli install -r gpl gem vbr # reinstall gpl gem -u vbr"
     echo "      Notes:   gem target has options see install gem -h for details"
-    echo "  uninstall [options?] 'remove GPL,GEM and wine Prefix'"
+    echo "  uninstall [options?] 'remove cache,GPL,GEM and wine Prefix'"
     echo "      options: "
     echo "          'gpl'   remove 'c:\Sierra\gpl'"
     echo "          'geml'  remove 'c:\Sierra\gpl'"
     echo "          'pfx'      remove 'prefix' (default)"
-    echo "  run                   \"run something in gpl's WINEPREFIX\""
+    echo "  run                   \"run something on gpl's WINEPREFIX\""
     echo "      example:    '\$$_filename run wine winecfg'"
-    echo "  wine                  \"run wine 'something' gpl's WINEPREFIX\""
+    echo "  wine                  \"run wine 'something' on gpl's WINEPREFIX\""
     echo "      example:    '\$$_filename wine winecfg'"
     echo "  open"
     echo "      example: '\$$_filename open' # opens \$WINEPREFIX"
@@ -823,6 +848,20 @@ if [[ $# -lt 1 ]]; then
     exit 1
 fi
 #
+# Args:
+#   $1  'option' ex, 'x=1'
+# Returns:
+#   $2  'value'
+#
+option:value() {
+    local r="\w+=(.*)"
+    if [[ "$1" =~ $r ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        return 1
+    fi
+}
+#
 # Exec Opts
 #
 option() {
@@ -858,18 +897,18 @@ while getopts ":hvu-:" o; do
     -)
         case "${OPTARG}" in
         help)
-            option 'help' "$(optionValue $OPTARG)"
+            option 'help'
             ;;
         version)
-            option 'version' "$(optionValue $OPTARG)"
+            option 'version'
             ;;
         nomount)
             shift
-            option 'nomount' "$(optionValue $OPTARG)"
+            option 'nomount'
             ;;
         wsldrive=*)
             shift
-            option 'wsldrive' "$(optionValue $OPTARG)"
+            option 'wsldrive' "$(option:value $OPTARG)"
             ;;
         *)
             error "Unknown option --${OPTARG}"
@@ -878,10 +917,10 @@ while getopts ":hvu-:" o; do
         esac
         ;;
     h)
-        option "help" "$OPTARG"
+        option "help"
         ;;
     v)
-        option "version" "$OPTARG"
+        option "version"
         ;;
     ?)
         if [ "$OPTERR" != 1 ] || [ "${OPTSPEC:0:1}" = ":" ]; then
@@ -896,7 +935,7 @@ done
 case $1 in
 install)
     shift
-    if Install "$@"; then
+    if install:selected "$@"; then
         debug "done"
     else
         error "done with error"
@@ -904,23 +943,39 @@ install)
     ;;
 uninstall)
     shift
-    uninstall "$@"
+    uninstall:selected "$@"
     ;;
 run)
     shift
-    runWithPrefix $@
+    run:on:prefix $@
     ;;
 wine)
     shift
-    runWithPrefix "$WINE" $@
+    run:on:prefix "$WINE" $@
     ;;
 open)
     shift
-    Open "$1"
+    open:pfx "$1"
     ;;
 launch)
     shift
-    Launch "$1"
+    launch "$1"
+    ;;
+unmount)
+    debug "unmount $GPL_ISO"
+    if ! unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT"; then
+        error "failed to unmount $GPL_ISO"
+        exit 1
+    fi
+    exit
+    ;;
+mount)
+    debug "mount $GPL_ISO"
+    if ! mount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
+        error "failed to mount $GPL_ISO"
+        exit 1
+    fi
+    exit 
     ;;
 *)
     error "Unkown verb:'$1'"
