@@ -212,63 +212,59 @@ wsl:drive:valid() {
     fi
 }
 #
-# mount ISO with 'mount' , needs root
+# Mounting in WSL is different
 # Args:
 #   $1  'ISO'
 #   $2  'mount point'
 #   $3  'wsl drive'
 #
-mount:mnt() {
-    if [[ $NOROOTMOUNT -eq 1 ]]; then # debug
-        return 1                      # failed
+mount:mnt:wsl() {
+    if ! wsl:drive:valid $3; then
+        warn "wsl drive '$3' is not valid, using 'd:'"
+        return 1 # failed
     fi
-    # if not mounted
-    if [ -z "$(mount | grep $(basename "$1"))" ]; then
-        info "Mounting '$(basename "$1")' into '$2'"
-        if [ $OS == $OS_WSL ]; then
-            # Mounting in WSL is different
-            if ! wsl:drive:valid $3; then
-                warn "wsl drive '$3' is not valid, using 'd:'"
-                return 1 # failed
-            fi
-            local WINE_DRIVE="$3"
-            if ! wsl:drive:valid "$3"; then
-                warn "WINE_DRIVE '$3' is not valid, using '$3'"
-                WINE_DRIVE="d"
-            fi
-            if sudo mkdir -p "$2" &&
-                sudo mount -t drvfs "$WINE_DRIVE:" "$2"; then
-                # create simlink in pfx/dosdevices/d:
-                if ln -s "$2" "$WINEPREFIX/dosdevices/$WINE_DRIVE:"; then # or wine doesn't see it
-                    UNMOUNT=1                                             # OK, flag unmount
-                fi
-            else
-                return 1 # failed
-            fi
-        else
-            # mounting on linux
-            if [ ! -d "$2" ]; then
-                if ! mkdir -p "$2"; then
-                    debug "mount point '$2' is not a directory .. trying with sudo"
-                    if ! sudo mkdir -p "$2"; then
-                        error "failed to create mount point '$2'"
-                        return 1
-                    fi
-                fi
-            fi
-            if ! mount -o ro,loop "$1" "$2"; then # try mount
-                debug "trying to mount '$1' with sudo"
-                if ! sudo mount -o ro,loop "$1" "$2"; then # try mount with superuser
-                    error "Failed to mount '$1'"
-                    return 1
-                fi
-                #OK
-                debug "mounted $1"
-                UNMOUNT=1 # flag unmountMount
+    if ! sudo mkdir -p "$2" ||
+        ! sudo mount -t drvfs "$3:" "$2"; then
+        return 1 # failed
+    fi
+    # create simlink in pfx/dosdevices/d:
+    ln -s "$2" "$WINEPREFIX/dosdevices/$3:" # or wine doesn't see it
+}
+#
+# mount ISO with 'mount' , needs root
+# Args:
+#   $1  'ISO'
+#   $2  'mount point'
+#
+mount:mnt:linux() {
+    # mounting on linux
+    if [ ! -d "$2" ]; then
+        if ! mkdir -p "$2"; then
+            debug "mount point '$2' is not a directory .. trying with sudo"
+            if ! sudo mkdir -p "$2"; then
+                error "failed to create mount point '$2'"
+                return 1
             fi
         fi
-    else
-        return 0 # mounted
+    fi
+    if ! mount -o ro,loop "$1" "$2"; then # try mount
+        debug "trying to mount '$1' with sudo"
+        if ! sudo mount -o ro,loop "$1" "$2"; then # try mount with superuser
+            error "Failed to mount '$1'"
+            return 1
+        fi
+        #OK
+        debug "mounted $1"
+    fi
+}
+#
+# Args:
+#   $1 ISO
+#
+mount:mnt:ismounted() {
+    local r="$(mount | grep $(basename $1))"
+    if [ -z "$r" ]; then
+        return 1
     fi
 }
 #
@@ -301,29 +297,32 @@ mount:try() {
             return 0
         fi
         # mount using mount, may need root
-        if mount:mnt "$1" "$3" "$4"; then
+        if mount:mnt:ismounted "$1"; then
+            # OK: but do not set UNMOUNT
             return 0
         fi
+        mount:mnt:linux "$1" "$3"
+        UNMOUNT=1 # flag unmountMount
+        return $?
         ;;
     $OS_WSL)
-        if mount:mnt "$1" "$3" "$4"; then
+        # mount using mount, may need root
+        if mount:mnt:ismounted "$1"; then
+            # OK: but do not unmount
+            return 0
+        fi
+        if mount:mnt:wsl "$1" "$3" "$4"; then
+            local ret=$?
             debug "$(basename "$1") '$OS' 'Mounted' by 'mount:mnt'"
             UNMOUNT=1
-            return 0
+            return $ret
         fi
         ;;
     *)
-        error "mount:mnt '$(basename "$1")' on '$OS' in not implemented"
+        error "mount '$(basename "$1")' on '$OS' in not implemented"
         return 1 #failed
         ;;
     esac
-    # Failed
-    msg="'$OS': Unable to mount '$(basename $1)'\n"
-    msg+=" You will need to mount '$1'\n"
-    msg+=" Or load the Disc your self.\n"
-    msg+=" Relaunch with '--nomount' to skip mounting '$1'"
-    error "$msg"
-    return 1
 }
 #
 # unmount ISO without sudo
@@ -345,9 +344,6 @@ unmount:udisksctl() {
 #   $1  'GPL_ISO_MNT_POINT'
 #
 unmount:mnt() {
-    if ! [[ $UNMOUNT -eq 1 ]]; then
-        return 0 # not mounted
-    fi
     if ! umount "$1"; then          # try , maybe you have rights
         if ! sudo umount "$1"; then # try with sudo
             error "'$SUDO umount $1' failed"
@@ -357,38 +353,56 @@ unmount:mnt() {
     debug "Unmounted $1"
 }
 #
+# Args:
+#   $1  'ISO'
+#   $2  'label'
+#   $3  'GPL_ISO_MNT_POINT'
+#   $4   'WSL drive'
+#
+unmount:wsl() {
+    if ! mount:mnt:ismounted "$1"; then
+        return 1 #
+    fi
+    if ! unmount:mnt "$3"; then
+        return 1
+    fi
+    if [ -e "$WINEPREFIX/dosdevices/$4:" ] && ! rm "$WINEPREFIX/dosdevices/$4:"; then
+        warn "Failed to remove wine drive '$4' from '$WINEPREFIX/dosdevices'"
+        return 1 # failed
+    fi
+    debug "unmounted $1"
+}
+#
 # try un unmount iso if it was mounted
 # by $OS
 # Args:
 #   $1  'ISO'
 #   $2  'label'
 #   $3  'GPL_ISO_MNT_POINT'
+#   $4  'WSL DRIVE'
 #
 unmount:try() {
-    if [[ $UNMOUNT -eq 1 ]]; then
-        debug "unmounting $(basename "$1")"
-        if [ $OS == $OS_DARWIN ]; then
-            hdiutil unmount /Volumes/$2
-            # debug "'$OS' '$(basename $GPL_ISO)' unmounted by 'hdiutil'"
-        elif [ $OS == $OS_LINUX ]; then
-            if unmount:udisksctl "$2"; then
-                return 0
-            fi
-            if unmount:mnt "$3"; then
-                return 0
-            fi
-            return 1
-        elif [ $OS == $OS_WSL ]; then
-            if ! unmount:mnt "$3"; then
-                if ! rm "$WINE_DRIVE_PATH"; then
-                    warn "Failed to remove '$WINE_DRIVE_PATH'"
-                    return 1 # failed
-                fi
-            fi
-            debug "'$OS' '$(basename "$1")' unmounted by 'unmount'"
-        else
-            error "Unmounting $1 on $OS is not implemented"
+    debug "unmounting $(basename "$1")"
+    if [ $OS == $OS_DARWIN ]; then
+        hdiutil unmount /Volumes/$2
+        # debug "'$OS' '$(basename $GPL_ISO)' unmounted by 'hdiutil'"
+    elif [ $OS == $OS_LINUX ]; then
+        if unmount:udisksctl "$2"; then
+            return 0
         fi
+        if ! mount:mnt:ismounted "$1"; then
+            return 1 #
+        fi
+        if unmount:mnt "$3"; then
+            return 0
+        fi
+        return 1
+    elif [ $OS == $OS_WSL ]; then
+        if ! unmount:wsl "$1" "$2" "$3" "$4"; then
+            return 1
+        fi
+    else
+        error "Unmounting $1 on $OS is not implemented"
     fi
 }
 #
@@ -500,24 +514,25 @@ install:gpl() {
         return 1
     fi
     # try mount ISO, required by GPL installer
-    local mounted=0
-    if mount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
-        mounted=1
+    if ! mount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
+        # Failed
+        msg="'$OS': Unable to mount '$(basename $1)'\n"
+        msg+=" You will need to mount '$1'\n"
+        msg+=" Or load the Disc your self.\n"
+        msg+=" Relaunch with '--nomount' to skip mounting '$1'"
+        error "$msg"
+        return 1
     fi
     #  GPL installer needs the CD
-    if [[ $mounted -eq 1 ]]; then
-        debug "Running GPL installer"
-        if run:exe "$GPL_INSTALLER_EXE"; then
-            GPL_INSTALLED=1
-            debug "installed GPL"
-        else
-            error "Failed to install GPL"
-        fi
+    debug "Running GPL installer"
+    if run:exe "$GPL_INSTALLER_EXE"; then
+        GPL_INSTALLED=1
+        debug "installed GPL"
     else
-        error "Can't install GPL"
+        error "Failed to install GPL"
     fi
     # try unmount:mnt ISO
-    if ! unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT"; then
+    if [[ $UNMOUNT -eq 1 ]] && ! unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
         error "Failed to unmount "$GPL_ISO_LABEL" "$GPL_ISO""
     fi
 }
@@ -961,21 +976,19 @@ launch)
     shift
     launch "$1"
     ;;
-unmount)
+unmount) #undocumented
     debug "unmount $GPL_ISO"
-    if ! unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT"; then
-        error "failed to unmount $GPL_ISO"
-        exit 1
-    fi
-    exit
+    unmount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"
+    ret=$([[ "$?" -gt 0 ]] && echo "NO" || echo "YES")
+    echo "unmounted: $ret"
     ;;
-mount)
+mount) #undocumented
     debug "mount $GPL_ISO"
-    if ! mount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE"; then
-        error "failed to mount $GPL_ISO"
-        exit 1
+    if mount:try "$GPL_ISO" "$GPL_ISO_LABEL" "$GPL_ISO_MNT_POINT" "$WSLDRIVE" && [[ $UNMOUNT -eq 1 ]]; then
+        info mounted
+    else
+        info NOT mounted
     fi
-    exit 
     ;;
 *)
     error "Unkown verb:'$1'"
