@@ -373,8 +373,7 @@ unmount:wsl() {
     if [ -e "$WINEPREFIX/dosdevices/$4:" ] && ! rm "$WINEPREFIX/dosdevices/$4:"; then
         warn "Failed to remove wine drive '$4' from '$WINEPREFIX/dosdevices'"
         return 1 # failed
-    fi
-    debug "unmounted $1"
+    fi    
 }
 #
 # try un unmount iso if it was mounted
