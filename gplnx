@@ -373,7 +373,7 @@ unmount:wsl() {
     if [ -e "$WINEPREFIX/dosdevices/$4:" ] && ! rm "$WINEPREFIX/dosdevices/$4:"; then
         warn "Failed to remove wine drive '$4' from '$WINEPREFIX/dosdevices'"
         return 1 # failed
-    fi    
+    fi
 }
 #
 # try un unmount iso if it was mounted
@@ -482,8 +482,14 @@ install:gem() {
                     return 1
                 fi
                 info "Extracted '$GEM_PACKAGE_EXE' into '$GPLSecrets'"
-                if ! cp "$GPLSecrets/syswow64/GPLPatchDLL.dll" "$DRIVE_C/windows/syswow64/"; then
-                    warn "Failed to move GPLPatchDLL.dll to windows/syswow64"
+                if ! cp "$GPLSecrets"/syswow64/*.dll "$DRIVE_C"/windows/syswow64/; then
+                    # copy COMDLG32.OCX  GPLPatchDLL.dll  MSCOMCTL.OCX  MSINET.OCX  SYSINFO.OC
+                    warn "Failed to move *.dll to '$DRIVE_C/windows/syswow64'"
+                    warn "GEMP2.exe might not work"
+                fi
+                if ! cp "$GPLSecrets"/sys/*.dll "$DRIVE_C"/windows/system/; then
+                    # copy msvbvm60.dll
+                    warn "Failed to move *.dll to '$DRIVE_C/windows/system'"
                     warn "GEMP2.exe might not work"
                 fi
             fi
@@ -790,7 +796,7 @@ launch() {
     gpl67)
         run:on:prefix "$WINE" start 'c:\sierra\GPL\gplc67.exe' /d 'c:\sierra\GPL' # /wait
         ;;
-    gem+)
+    gem)
         # TODO: use find -> winepath ?
         if ! run:on:prefix "$WINE" start 'c:\GPLSecrets\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
             if ! run:on:prefix "$WINE" start 'c:\GPLSecrets\app\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
