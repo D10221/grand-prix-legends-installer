@@ -809,7 +809,11 @@ pfx:path() {
             fi
         fi
     fi
-    echo $p
+    if [ ! -z "$1" ]; then
+        echo $p
+    else
+        echo $WINEPREFIX
+    fi
 }
 #
 # open $WINEPREFIX/$1 in terminal
