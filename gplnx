@@ -222,8 +222,12 @@ mount:mnt:wsl() {
         warn "wsl drive '$3' is not valid, using 'd:'"
         return 1 # failed
     fi
-    if ! sudo mkdir -p "$2" ||
-        ! sudo mount -t drvfs "$3:" "$2"; then
+    if ! sudo mkdir -p "$2"; then
+        return 1 # failed
+    fi
+    if ! sudo mount -t drvfs "$3:" "$2"; then
+        error "Did you load the ISO on the Windows side?"
+        warn "To stop trying to mount the iso pass the --no-mount switch or set the var NOMOUNT=1"
         return 1 # failed
     fi
     # create simlink in pfx/dosdevices/d:
@@ -779,16 +783,16 @@ uninstall:selected() {
 #
 pfx:path() {
     debug "args=$@"
-    
+
     # TODO: fix this, translate win path
-    if [ ! -z "$1" ]; then        
+    if [ ! -z "$1" ]; then
         if [[ "$1" =~ ^[a-zA-Z]: ]]; then
             # debug "is wine path"
-            local p="$(winepath "$1")"
-        else            
+            local p="$(WINEPREFIX=$WINEPREFIX winepath "$1")"
+        else
             debug "Not wine path $1"
             local p="$WINEPREFIX/$1"
-            if [ ! -e  "$p" ]; then
+            if [ ! -e "$p" ]; then
                 error "Can't find '$p'"
                 exit 1
             fi
@@ -812,16 +816,16 @@ open:terminal() {
         return 1
         ;;
     $OS_WSL)
-        if cd "$p"; then 
+        if cd "$p"; then
             x-terminal-emulator & # --working-director
-        else 
+        else
             return 1
         fi
         ;;
     $OS_LINUX)
-        if cd "$p" ; then 
+        if cd "$p"; then
             x-terminal-emulator "--working-directory=$PWD" & # doesn't always work
-        else 
+        else
             return 1
         fi
         ;;
@@ -840,14 +844,14 @@ open:x() {
         return 1
         ;;
     $OS_LINUX)
-         if cd "$p"; then 
-          x-terminal-emulator "--working-directory=$PWD" & # doesn't always work
-         else
+        if cd "$p"; then
+            x-terminal-emulator "--working-directory=$PWD" & # doesn't always work
+        else
             return 1
-         fi
+        fi
         ;;
     $OS_WSL)
-        if cd "$p"; then 
+        if cd "$p"; then
             xdg-open "$p" &
         else
             return 1
@@ -877,7 +881,7 @@ open:pfx() {
             shift
             echo "$@"
             open:terminal "$@"
-            return $?            
+            return $?
             ;;
         x)
             shift
@@ -895,26 +899,29 @@ open:pfx() {
 #
 #
 #
-launch() {
-    case "$1" in
-    gpl)
-        run:on:prefix "$WINE" start 'c:\sierra\GPL\gpl.exe' /d 'c:\sierra\GPL' # /wait
-        ;;
-    gpl67)
-        run:on:prefix "$WINE" start 'c:\sierra\GPL\gplc67.exe' /d 'c:\sierra\GPL' # /wait
-        ;;
-    gem)
-        # TODO: use find -> winepath ?
-        if ! run:on:prefix "$WINE" start 'c:\GPLSecrets\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
-            if ! run:on:prefix "$WINE" start 'c:\GPLSecrets\app\GEM+\GEMP2.exe' /d 'c:\sierra\GPL'; then
-                error "Can't find or open GEMP2.exe"
-            fi
-        fi
-        ;;
-    *)
+start:exe() {
+    local f=$(find $DRIVE_C -name "$1".exe)
+    if [ -f "$f" ]; then
+        local p="$(WINEPREFIX=$WINEPREFIX winepath -w "$f")"
+        echo "winepath=$p"
+        run:on:prefix "$WINE" start "$p" /d "c:\Sierra\GPL" # start always on gpl.exe's path ? 
+        return 0
+    fi
+    return 1
+}
+#
+#
+#
+start:app() {
+    local x="${1,,}"
+    if [[ $x =~ ^gem(\+)?$ ]]; then # match "Gem gem GEM gem+ GEM+ etc"
+        start:exe "GEMP2"
+    elif [[ $x =~ ^gpl\w?\d+?$ ]]; then
+        start:exe $x
+    else
         error "Don't how to open '$1'"
-        ;;
-    esac
+        return 1
+    fi
 }
 #
 # show usage
@@ -942,11 +949,14 @@ usage() {
     echo "  wine                  \"run wine 'something' on gpl's WINEPREFIX\""
     echo "      example:    '\$$_filename wine winecfg'"
     echo "  open"
+    echo "      opens \$WINEPREFIX location or sub location with default file manager or terminal"
     echo "      example: '\$$_filename open' # opens \$WINEPREFIX"
     echo "      example: '\$$_filename open dirve_c ' # opens \$WINEPREFIX/drive_c"
-    echo "  launch"
-    echo "      example: '\$$_filename launch gpl'  # starts wine 'c:\Sierra\GPL\gpl.exe'"
-    echo "      example: '\$$_filename launch gem+' # starts wine 'c:\GPLSecrets\GEM+\GEMP2.exe'"
+    echo "      example: '\$$_filename open 'c:\Sierra' ' # opens \$WINEPREFIX/drive_c/Sierra"
+    echo "  start"
+    echo "      starts GPL or GEM+"
+    echo "      example: '\$$_filename start gpl'  # starts wine 'c:\Sierra\GPL\gpl.exe'"
+    echo "      example: '\$$_filename start gem+' # starts wine 'c:\GPLSecrets\GEM+\GEMP2.exe'"
     echo ""
     echo "Options:"
     echo "  -h --help      'Show this'"
@@ -1063,7 +1073,7 @@ while getopts ":hvu-:" o; do
         ;;
     esac
 done
-# launch verbs
+# verbs
 case $1 in
 install)
     shift
@@ -1089,9 +1099,9 @@ open)
     shift
     open:pfx $@
     ;;
-launch)
+start)
     shift
-    launch "$1"
+    start:app "$1"
     ;;
 unmount) #undocumented
     debug "unmount $GPL_ISO"
