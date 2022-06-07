@@ -440,7 +440,7 @@ install:dll() {
             if ! cp "$f" "$DRIVE_C"/$2; then
                 error "Failed to copy $f to '$DRIVE_C/$2'"
             else
-                local dll="$(WINEPREFIX=$WINEPREFIX PATH=$PATH winepath -w $target)"                
+                local dll="$(WINEPREFIX=$WINEPREFIX PATH=$PATH winepath -w $target)"
                 if ! WINEPREFIX=$WINEPREFIX PATH=$PATH wine regsvr32.exe "$dll"; then
                     error "failed to register $dll"
                 fi
@@ -823,7 +823,7 @@ open:terminal() {
     debug "opening '$p'"
     case $OS in
     $OS_DARWIN)
-        error "'$OS' '${FUNCNAME[0]}' Not implemented"
+        open -a Terminal "$p"
         return 1
         ;;
     $OS_WSL)
@@ -847,18 +847,18 @@ open:terminal() {
     esac
 }
 open:x() {
-    if [ -z "$(which xdg-open)" ]; then
-        error "Can't find xdg-open"
-        exit 1
-    fi
     p="$(pfx:path $1)"
     debug "opening '$p'"
     case $OS in
     $OS_DARWIN)
-        open p
+        open $p
         return 1
         ;;
     $OS_LINUX)
+        if [ -z "$(which xdg-open)" ]; then
+            error "Can't find xdg-open"
+            exit 1
+        fi
         if cd "$p"; then
             xdg-open "$p" &
         else
@@ -866,6 +866,10 @@ open:x() {
         fi
         ;;
     $OS_WSL)
+        if [ -z "$(which xdg-open)" ]; then
+            error "Can't find xdg-open"
+            exit 1
+        fi
         if cd "$p"; then
             xdg-open "$p" &
         else
