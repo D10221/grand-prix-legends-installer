@@ -430,6 +430,25 @@ get() {
     fi
 }
 #
+# $1: GPLSecrets/sys | GPLSecrets/syswow64 # source
+# $2: windows/system | windows/syswow64 # target
+#
+install:dll() {
+    for f in $(ls $1/*); do
+        if [ -f "$f" ] && [[ ${f,,} =~ \.dll$ ]] || [[ ${f,,} =~ \.ocx$ ]]; then
+            local target="$DRIVE_C"/$2/"$(basename $f)"
+            if ! cp "$f" "$DRIVE_C"/$2; then
+                error "Failed to copy $f to '$DRIVE_C/$2'"
+            else
+                local dll="$(WINEPREFIX=$WINEPREFIX PATH=$PATH winepath -w $target)"                
+                if ! WINEPREFIX=$WINEPREFIX PATH=$PATH wine regsvr32.exe "$dll"; then
+                    error "failed to register $dll"
+                fi
+            fi
+        fi
+    done
+}
+#
 # Installs GEM+
 # Args:
 #   none
@@ -485,16 +504,8 @@ install:gem() {
                     return 1
                 fi
                 info "Extracted '$GEM_PACKAGE_EXE' into '$GPLSecrets'"
-                if ! cp "$GPLSecrets"/syswow64/*.dll "$DRIVE_C"/windows/syswow64/; then
-                    # copy COMDLG32.OCX  GPLPatchDLL.dll  MSCOMCTL.OCX  MSINET.OCX  SYSINFO.OC
-                    warn "Failed to move *.dll to '$DRIVE_C/windows/syswow64'"
-                    warn "GEMP2.exe might not work"
-                fi
-                if ! cp "$GPLSecrets"/sys/*.dll "$DRIVE_C"/windows/system/; then
-                    # copy msvbvm60.dll
-                    warn "Failed to move *.dll to '$DRIVE_C/windows/system'"
-                    warn "GEMP2.exe might not work"
-                fi
+                install:dll "$GPLSecrets/sys" 'windows/system'
+                install:dll "$GPLSecrets/syswow64" 'windows/syswow64'
             fi
             ;;
         h)
@@ -849,7 +860,7 @@ open:x() {
         ;;
     $OS_LINUX)
         if cd "$p"; then
-             xdg-open "$p" &
+            xdg-open "$p" &
         else
             return 1
         fi
@@ -910,7 +921,7 @@ start:exe() {
     if [ -f "$f" ]; then
         local p="$(WINEPREFIX=$WINEPREFIX winepath -w "$f")"
         echo "winepath=$p"
-        run:on:prefix "$WINE" start "$p" /d "c:\Sierra\GPL" # start always on gpl.exe's path ? 
+        run:on:prefix "$WINE" start "$p" /d "c:\Sierra\GPL" # start always on gpl.exe's path ?
         return 0
     fi
     return 1
