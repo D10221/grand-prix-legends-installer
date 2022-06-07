@@ -201,9 +201,8 @@ mount:udisksctl() {
 # Args:
 #   $1  'Drive Letter'
 #
-wsl:drive:valid() {
+wsl:drive:valid() {    
     if [ -z "$1" ]; then
-        error "wsldrive is required to mount $(basename $GPL_ISO), relaunch with --nomount OR --wsldrive='<drive>', see --help for more"
         return 1 # failed
     fi
     if ! [[ "$1" =~ ^[a-zA-Z]$ ]]; then
@@ -777,12 +776,65 @@ uninstall:selected() {
 }
 #
 # open WINEPREFIX/?
+# Args:
+#   $1? path
+# Options:
+#   -h
+#   -x open in terminal
 #
 open:pfx() {
+    local x=0
+    while getopts ':xh' arg; do
+        case "$arg" in
+        h)
+            echo "$_filename open [options] [path]"
+            echo "  options:"
+            echo "      -h  'shows this'"
+            echo "      -x  'open in terminal'"
+            return 0
+            ;;
+        x)
+            shift
+            x=1
+            ;;
+        *)
+            error "Unknown option '$arg'"
+            return 1
+            ;;
+        esac
+    done
+    if [ ! -d "$WINEPREFIX" ]; then
+        error "Can't find '$WINEPREFIX'"
+        exit 1
+    fi
+
+    local p="$WINEPREFIX"
+       # TODO: fix this, translate win path    
+    if [ ! -z "$1" ] && [[ "$1" =~ ^[a-zA-Z]: ]]; then         
+        p=$(winepath "$1")
+        else
+        p+="/$1"
+    fi
+     
+    if [ ! -d "$p" ]; then
+        error "Can't find '$p'"
+        exit 1
+    fi
+
+    debug "opening '$p'"
     if [ $OS == $OS_DARWIN ]; then
-        open $WINEPREFIX/"$1"
+        if [[ "$x" -eq 1 ]]; then
+            error "Not implemented"
+            return 1
+        else
+            open "$p"
+        fi
     else
-        xdg-open $WINEPREFIX/"$1"
+        if [[ "$x" -eq 1 ]]; then
+            cd "$p" && x-terminal-emulator "--working-directory=$PWD" # doesn't work
+        else
+            xdg-open "$p"
+        fi
     fi
 }
 #
