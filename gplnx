@@ -836,6 +836,10 @@ open:terminal() {
     esac
 }
 open:x() {
+    if [ -z "$(which xdg-open)" ]; then
+        error "Can't find xdg-open"
+        exit 1
+    fi
     p="$(pfx:path $1)"
     debug "opening '$p'"
     case $OS in
@@ -845,7 +849,7 @@ open:x() {
         ;;
     $OS_LINUX)
         if cd "$p"; then
-            x-terminal-emulator "--working-directory=$PWD" & # doesn't always work
+             xdg-open "$p" &
         else
             return 1
         fi
