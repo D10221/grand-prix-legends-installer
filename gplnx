@@ -874,7 +874,8 @@ open:pfx() {
             echo "$_filename open [options] [path]"
             echo "  options:"
             echo "      -h  'shows this'"
-            echo "      -t  'open in terminal'"
+            echo "      -t  'open with default terminal'"
+            echo "      -x  'open with default file manager'"
             return 0
             ;;
         t)
@@ -953,8 +954,12 @@ usage() {
     echo "      \"run wine 'something' on gpl's WINEPREFIX\""
     echo "      examples:"
     echo "          '\$$_filename wine winecfg'"
-    echo "  open [path]"
+    echo "  open [options] [path]"
     echo "      opens \$WINEPREFIX location or sub location with default file manager or terminal"
+    echo "      options:"
+    echo "              -x with default filemanager"
+    echo "              -t with default terminal"
+    echo "              -h shows this"
     echo "      examples:"
     echo "          '\$$_filename open' # opens \$WINEPREFIX"
     echo "          '\$$_filename open dirve_c ' # opens \$WINEPREFIX/drive_c"
