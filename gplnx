@@ -900,6 +900,7 @@ open:pfx() {
 #
 #
 start:exe() {
+    debug "finding $1"
     local f=$(find $DRIVE_C -name "$1".exe)
     if [ -f "$f" ]; then
         local p="$(WINEPREFIX=$WINEPREFIX winepath -w "$f")"
@@ -916,7 +917,7 @@ start:app() {
     local x="${1,,}"
     if [[ $x =~ ^gem(\+)?$ ]]; then # match "Gem gem GEM gem+ GEM+ etc"
         start:exe "GEMP2"
-    elif [[ $x =~ ^gpl\w?\d+?$ ]]; then
+    elif [[ $x =~ ^gpl[a-z]?[0-9]+?$ ]]; then # match gplc67, gpl gpl18
         start:exe $x
     else
         error "Don't how to open '$1'"
