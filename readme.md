@@ -21,6 +21,44 @@ wget 'https://raw.githubusercontent.com/D10221/grand-prix-legends-installer/main
 ./gplnx install
 ```
 
+## Installation details
+
+By default
+
+It creates a new wine prefix at `~/.local/share/GPL/pfx`
+
+And keeps the downloads at `~/.cache/GPL`
+
+## Start ing GPL and GEM+
+
+```
+  WINEPREFIX=~/.local/share/GPL/pfx wine 'c:\Sierra\GPL\gpl.exe'
+```
+
+```
+  WINEPREFIX=~/.local/share/GPL/pfx wine 'c:\GPLSecrets\app\GEM+\GEMP2.exe'
+```
+Or you can use this tool 
+
+```
+  ./gplnx start gpl 
+  
+```
+it should start gpl.exe with ~/.local/share/GPL/pfx as wine prefix
+
+```
+  ./gplnx start gem 
+```
+
+it should start GEMP2.exe with ~/.local/share/GPL/pfx as wine prefix
+
+```
+  ./gplnx start gplc67
+
+```
+  It should start gplc67.exe with ~/.local/share/GPL/pfx as wine prefix
+
+
 ## Works on:
 
 - Ubuntu
