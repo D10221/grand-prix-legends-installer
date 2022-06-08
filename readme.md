@@ -1,49 +1,65 @@
 # Grand Prix Legends installer <small>(wip)</small>
+
 Grand Prix Legends installer for Wine
 
 Creates wine prefix, mounts iso, downloads and runs the installer
 
 ## Install
-  - Download 'https://raw.githubusercontent.com/D10221/grand-prix-legends-installer/main/gplnx'
-  ```bash
-    wget 'https://raw.githubusercontent.com/D10221/grand-prix-legends-installer/main/gplnx
-  ```
-  - make it executable  
-      ```chmod +x gplnx```      
-  - run it 
-  ```bash
-  ./gplnx install
-  ```
+
+- Download
+  'https://raw.githubusercontent.com/D10221/grand-prix-legends-installer/main/gplnx'
+
+```bash
+wget 'https://raw.githubusercontent.com/D10221/grand-prix-legends-installer/main/gplnx
+```
+
+- make it executable\
+  `chmod +x gplnx`
+- run it
+
+```bash
+./gplnx install
+```
 
 ## Works on:
-  - Ubuntu
-  - Maybe Debian/Ubuntu derivatives
-  - MacOS
-  - WSL (partially)
+
+- Ubuntu
+- Maybe Debian/Ubuntu derivatives
+- MacOS
+- WSL (partially)
 
 ## Tested on:
-  - Ubuntu 20.4
-  - MacOS Monterrey 12.3.1
-  - Windows 10 Wsl Ubuntu 20.4
+
+- Ubuntu 20.4
+- MacOS Monterrey 12.3.1
+- Windows 10 Wsl Ubuntu 20.4
 
 ## Requires:
-   - bash 'on mac may require `brew install bash`'
-   - wget
-   - wine
-   - md5sum|shasum
-   - udisksctl
-   - file
-   - grep
+
+    - bash 'on mac may require `brew install bash`'
+    - wget
+    - wine
+    - shasum
+    - udisksctl
+    - file
+    - grep
+    - [innoextract](https://constexpr.org/innoextract/)
+    - xdg-open
+On Ubuntu you prob need innoextract only , the rest  are built in
 
 ## Downloads:
-   - GrandPrixLegends.iso from archive.org
-   - gplinstall_beta_1.08.exe from  grandprixlegends.info
+
+- GrandPrixLegends.iso from archive.org
+- gplinstall_beta_1.08.exe from grandprixlegends.info
 
 ## Notes:
-  - on 'wsl' you will need get 'X' working, see [gwsl](https://opticos.github.io/gwsl/)
-  - on 'wsl' wine doesn't see the mounted drive even when successfully mounted
+
+- on 'wsl' you will need get 'X' working, see
+  [gwsl](https://opticos.github.io/gwsl/)
+- on 'wsl' wine doesn't see the mounted drive even when successfully mounted
 
 # Usage
+
 ```
 Grand Prix Legends wine Installer v0.0.1
 Usage: 'gplnx [verb] [options]'
@@ -97,5 +113,4 @@ Vars:
  NOROOTMOUNT     'Do not try to mount ISO if requires root access
  DEBUG           'show debug info'
                   example '$ DEBUG='*' ./gpli.local install'
-
 ```
