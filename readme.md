@@ -1,6 +1,6 @@
 # Grand Prix Legends installer <small>(wip)</small>
 
-Grand Prix Legends installer for Wine
+Grand Prix Legends installer for Wine on Linux
 
 Creates wine prefix, mounts iso, downloads and runs the installer
 
@@ -17,9 +17,23 @@ wget 'https://raw.githubusercontent.com/D10221/grand-prix-legends-installer/main
   `chmod +x gplnx`
 - run it
 
+To Install GPL and GEm
 ```bash
 ./gplnx install
 ```
+To Install Only GEM (unpack)
+```bash
+./gplnx install gem
+```
+To run GEM Installer
+```bash
+./gplnx install gem -i
+```
+To install GPL Only 
+```
+./gplnx install gpl
+```
+
 
 ## Installation details
 
@@ -29,7 +43,13 @@ It creates a new wine prefix at `~/.local/share/GPL/pfx`
 
 And keeps the downloads at `~/.cache/GPL`
 
+Overrideable by vars: 
+   $GPL_HOME    $WINEPREFIX   $CACHE
+
+
 ## Starting GPL and GEM+
+
+#### With wine 
 
 ```
   WINEPREFIX=~/.local/share/GPL/pfx wine 'c:\Sierra\GPL\gpl.exe'
@@ -38,7 +58,7 @@ And keeps the downloads at `~/.cache/GPL`
 ```
   WINEPREFIX=~/.local/share/GPL/pfx wine 'c:\GPLSecrets\app\GEM+\GEMP2.exe'
 ```
-Or you can use this tool 
+#### Or you can use this tool 
 
 ```
   ./gplnx start gpl 
