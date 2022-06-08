@@ -1,29 +1,43 @@
 Grand Prix Legends wine Installer v0.0.1
 Usage: 'gplnx [verb] [options]'
 Verbs: 
-  install [options?] [what]?   'run GPL installers'
+  install [options?] [target]?   'run GPL installers'
       options:
-          no options implemented
-      what:
-         values: gpl gem vbr
+          -h help
+      target:
+          gpl gem vbr
       example:
           $gpli install -r gpl # REINSTALL gpl
-          $gpli install -r gpl gem vbr # reinstall gpl gem vbr
-  uninstall [options?] 'remove GPL,GEM and wine Prefix'
+          $gpli install -r gpl gem vbr # reinstall gpl gem -u vbr
+      Notes:   gem target has options see install gem -h for details
+  uninstall [options?] 'remove cache,GPL,GEM and wine Prefix'
       options: 
           'gpl'   remove 'c:\Sierra\gpl'
           'geml'  remove 'c:\Sierra\gpl'
           'pfx'      remove 'prefix' (default)
-  run                   "run something in gpl's WINEPREFIX"
-      example:    '$gplnx run wine winecfg'
-  wine                  "run wine 'something' gpl's WINEPREFIX"
-      example:    '$gplnx wine winecfg'
-  open
-      example: '$gplnx open' # opens $WINEPREFIX
-      example: '$gplnx open dirve_c ' # opens $WINEPREFIX/drive_c
-  launch
-      example: '$gplnx launch gpl'  # starts wine 'c:\Sierra\GPL\gpl.exe'
-      example: '$gplnx launch gem+' # starts wine 'c:\GPLSecrets\GEM+\GEMP2.exe'
+  run [cmd]
+      "run something on gpl's WINEPREFIX"
+      examples:
+          '$gplnx run wine winecfg'
+  wine [cmd]
+      "run wine 'something' on gpl's WINEPREFIX"
+      examples:
+          '$gplnx wine winecfg'
+  open [options] [path]
+      opens $WINEPREFIX location or sub location with default file manager or terminal
+      options:
+              -x with default filemanager
+              -t with default terminal
+              -h shows this
+      examples:
+          '$gplnx open' # opens $WINEPREFIX
+          '$gplnx open dirve_c ' # opens $WINEPREFIX/drive_c
+          '$gplnx open 'c:\Sierra' ' # opens $WINEPREFIX/drive_c/Sierra
+  start [what]
+      starts GPL or GEM+
+      examples:
+          '$gplnx start gpl'  # starts wine 'c:\Sierra\GPL\gpl.exe'
+          '$gplnx start gem+' # starts wine 'c:\GPLSecrets\GEM+\GEMP2.exe'
 
 Options:
   -h --help      'Show this'

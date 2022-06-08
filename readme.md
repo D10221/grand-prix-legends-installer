@@ -31,9 +31,59 @@ Creates wine prefix, mounts iso, downloads and runs the installer
   - on 'wsl' you will need get 'X' working, see [gwsl](https://opticos.github.io/gwsl/)
   - on 'wsl' wine doesn't see the mounted drive even when successfully mounted
 
-### TODO:
-  - download dependencies and setup prefix for vb6 dependencies
-  - redo argument parsing, its very picky about switch order
-  - switches: NODOWNLOAD, NOCHECKSUM
-  - switch: --info, display installation details
-  - switch: --reinstall or verb 'reinstall'
+# Usage
+```
+Grand Prix Legends wine Installer v0.0.1
+Usage: 'gplnx [verb] [options]'
+Verbs: 
+  install [options?] [target]?   'run GPL installers'
+      options:
+          -h help
+      target:
+          gpl gem vbr
+      example:
+          $gpli install -r gpl # REINSTALL gpl
+          $gpli install -r gpl gem vbr # reinstall gpl gem -u vbr
+      Notes:   gem target has options see install gem -h for details
+  uninstall [options?] 'remove cache,GPL,GEM and wine Prefix'
+      options: 
+          'gpl'   remove 'c:\Sierra\gpl'
+          'geml'  remove 'c:\Sierra\gpl'
+          'pfx'      remove 'prefix' (default)
+  run [cmd]
+      "run something on gpl's WINEPREFIX"
+      examples:
+          '$gplnx run wine winecfg'
+  wine [cmd]
+      "run wine 'something' on gpl's WINEPREFIX"
+      examples:
+          '$gplnx wine winecfg'
+  open [options] [path]
+      opens $WINEPREFIX location or sub location with default file manager or terminal
+      options:
+              -x with default filemanager
+              -t with default terminal
+              -h shows this
+      examples:
+          '$gplnx open' # opens $WINEPREFIX
+          '$gplnx open dirve_c ' # opens $WINEPREFIX/drive_c
+          '$gplnx open 'c:\Sierra' ' # opens $WINEPREFIX/drive_c/Sierra
+  start [what]
+      starts GPL or GEM+
+      examples:
+          '$gplnx start gpl'  # starts wine 'c:\Sierra\GPL\gpl.exe'
+          '$gplnx start gem+' # starts wine 'c:\GPLSecrets\GEM+\GEMP2.exe'
+
+Options:
+  -h --help      'Show this'
+  -v --version   'Show 'gplnx' version'
+  --nomount      'Do not try to mount ISO'
+
+Vars:
+ NOMOUNT         'Do not try to mount ISO'
+ NOUSERMOUNT     'Do not try to mount ISO in userspace'
+ NOROOTMOUNT     'Do not try to mount ISO if requires root access
+ DEBUG           'show debug info'
+                  example '$ DEBUG='*' ./gpli.local install'
+
+```
