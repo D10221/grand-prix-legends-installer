@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Grand Prix Legends Linux Install tool
 # ## Desc:
-#   Creates wine prefix, mounts iso, downloads and runs the GPL, GEM+ and  Visual Basic runtime installers
+#   Creates wine prefix, mounts iso, downloads and runs the GPL, GEM+
 # ## Works on:
 #   - Ubuntu
 #   - Maybe Debian/Ubuntu derivatives. try it and let me know
@@ -20,20 +20,15 @@
 #    - file
 #    - grep
 #    - [innoextract](https://constexpr.org/innoextract/)
+#    - xdg-open
 # ## Downloads:
 #    - GrandPrixLegends.iso from archive.org
 #    - gplinstall_beta_1.08.exe from  grandprixlegends.info
 #    - GEMPackage_2.5.0.32.exe from gem.grandprixlegends.info
-#    - Visual Basic runtime from vb-paradise.de
-
 # ## Notes:
 #   - on 'wsl' you will need get display working, see [gwsl](https://opticos.github.io/gwsl/)
 #   - uninstall doesn't uninstall but nukes the wine prefix
 
-# ### TODO:
-#   - switches: NOCHECKSUM
-#   - switch: --info, display installation details
-#   - Create GEM+ shortcuts when unpacking instead of installing
 # Meta
 VERSION=0.0.1
 _filename=$(basename $0)
@@ -64,11 +59,11 @@ warn() { echo -e "\e[33m$_filename/${FUNCNAME[1]}: $@\e[0m" >&2; }
 #
 info() { echo -e "\e[32m$_filename/${FUNCNAME[1]}: $@\e[0m" >&2; }
 #
-debug "GPL_HOME=${GPL_HOME:="$HOME/.local/share/grand-prix-legends"}" # target installation root
-debug "CACHE=${CACHE:="$HOME/.cache/grand-prix-legends"}"             # where to save the downloads
+debug "GPL_HOME=${GPL_HOME:="$HOME/.local/share/GPL"}" # target installation root
+debug "CACHE=${CACHE:="$HOME/.cache/GPL"}"             # where to save the downloads
 # GPL disc ISO
 debug "GPL_ISO_URL=${GPL_ISO_URL:="https://archive.org/download/grand-prix-legends/GrandPrixLegends.iso"}"
-debug "GPL_ISO=${GPL_ISO:=$CACHE/grand-prix-legends.iso}"
+debug "GPL_ISO=${GPL_ISO:=$CACHE/GrandPrixLegends.iso}"
 debug "GPL_ISO_SHA=${GPL_ISO_SHA:="082542e01a9e63c914a8f34f77ee306531a2aa13  $GPL_ISO"}"
 debug "GPL_ISO_MNT_POINT=${GPL_ISO_MNT_POINT:="/mnt/$(basename $GPL_ISO)"}" # Global mounting point, to use by 'mount', NOT by 'udisksctl'
 debug "GPL_ISO_LABEL=${GPL_ISO_LABEL:="GPL"}"
@@ -80,11 +75,6 @@ debug "GPL_INSTALLER_EXE_SHASUM=${GPL_INSTALLER_EXE_SHASUM:="5223d8e8c577ec4504f
 debug "GEM_PACKAGE_URL=${GEM_PACKAGE_URL:="http://gem.grandprixlegends.info/GEM/GEMPackage_2.5.0.32.exe"}"
 debug "GEM_PACKAGE_EXE=${GEM_PACKAGE_EXE:="$CACHE/GEMPackage_2.5.0.32.exe"}"
 debug "GEM_PACKAGE_EXE_SHA=${GEM_PACKAGE_EXE_SHA:="e8ce456a6db5c2440cb0501accc553730e2ed321  $GEM_PACKAGE_EXE"}"
-# VB Community Runtime 1.00
-debug "VB_RUNTIME_URL=${VB_RUNTIME_URL:='https://www.vb-paradise.de/index.php/Attachment/27536-vbcrt-zip/?s=a4f2f3891cbdcc314f7a2a2dd5b5338e22d42441'}"
-debug "VB_RUNTIME_ZIP=${VB_RUNTIME_ZIP:="$CACHE/VBCommunityRuntime1.00.zip"}"
-debug "VB_RUNTIME_ZIP_SHA=${VB_RUNTIME_ZIP_SHA:="eb2c4ecf6057c1b9c27e236b63511785da1d89b0  $VB_RUNTIME_ZIP"}"
-debug "VB_RUNTIME_EXE=${VB_RUNTIME_EXE:="$CACHE/VB Community Runtime 1.00.exe"}"
 # wine
 debug "WINE=${WINE:="$(which wine)"}"
 debug "WINEPREFIX=${WINEPREFIX:="$GPL_HOME/pfx"}"
@@ -116,6 +106,8 @@ esac
 if [ $OS == $OS_WSL ]; then
     debug "WSLDRIVE=${WSLDRIVE:="d"}"
 fi
+# Globals
+UNMOUNT=0
 #
 # Download url
 # creates target directory
@@ -172,7 +164,6 @@ udisksctl:info:BackingFile() {
         return 1
     fi
 }
-UNMOUNT=0
 #
 # mount ISO without sudo
 # Args:
@@ -442,11 +433,41 @@ install:dll() {
             else
                 local dll="$(WINEPREFIX=$WINEPREFIX PATH=$PATH winepath -w $target)"
                 if ! WINEPREFIX=$WINEPREFIX PATH=$PATH wine regsvr32.exe "$dll"; then
-                    error "failed to register $dll"
+                    warn "failed to register $dll"
                 fi
             fi
         fi
     done
+}
+#
+# Unpacks GEM+ into drive c:
+# prefix breaks when installing GEM+ with the installer
+#
+unpack:gem() {
+    debug "Unpacking GEM+ into drive c:"
+    if get "$GEM_PACKAGE_EXE" "$GEM_PACKAGE_URL" "$GEM_PACKAGE_EXE_SHA"; then
+        # get GEM+ installer  download if not in cache
+        if [ ! -d "$DRIVE_C" ]; then
+            # crete prefix if not exists
+            if ! create:pfx; then
+                debug "Failed to create prefix: $WINEPREFIX"
+                return 1
+            fi
+        fi
+        if [ -z "$(which innoextract)" ]; then
+            error "Can't find 'innoextract', install innoextract and try again"
+            return 1
+
+        fi
+        local GPLSecrets="$DRIVE_C/GPLSecrets"
+        if ! innoextract "$GEM_PACKAGE_EXE" -d "$GPLSecrets" -s; then
+            error "failed to extract '$GEM_PACKAGE_EXE'"
+            return 1
+        fi
+        info "Extracted '$GEM_PACKAGE_EXE' into '$GPLSecrets'"
+        install:dll "$GPLSecrets/sys" 'windows/system'
+        install:dll "$GPLSecrets/syswow64" 'windows/syswow64'
+    fi
 }
 #
 # Installs GEM+
@@ -459,7 +480,7 @@ install:dll() {
 #
 install:gem() {
     # show usage
-    install:gem:usage() {
+    show:install:gem:usage() {
         echo "Installs GEM+"
         echo "$_filename install gem [options] [args]"
         echo "Options: "
@@ -478,38 +499,19 @@ install:gem() {
                     GEM_INSTALLED=1
                     debug "installed GEM+?"
                 else
+                    return 1
                     debug "failed to install GEM+"
                 fi
             fi
             ;;
         u)
-            # Unpack GEM+ into drive c:\
-            # prefix breaks when installing GEM+ with the installer
-            if get "$GEM_PACKAGE_EXE" "$GEM_PACKAGE_URL" "$GEM_PACKAGE_EXE_SHA"; then
-                # get GEM+ installer  download if not in cache
-                if [ ! -d "$DRIVE_C" ]; then
-                    if ! create:pfx; then
-                        debug "Failed to create prefix: $WINEPREFIX"
-                        return 1
-                    fi
-                fi
-                if [ -z "$(which innoextract)" ]; then
-                    error "Can't find 'innoextract', install innoextract and try again"
-                    return 1
-
-                fi
-                local GPLSecrets="$DRIVE_C/GPLSecrets"
-                if ! innoextract "$GEM_PACKAGE_EXE" -d "$GPLSecrets" -s; then
-                    error "failed to extract '$GEM_PACKAGE_EXE'"
-                    return 1
-                fi
-                info "Extracted '$GEM_PACKAGE_EXE' into '$GPLSecrets'"
-                install:dll "$GPLSecrets/sys" 'windows/system'
-                install:dll "$GPLSecrets/syswow64" 'windows/syswow64'
+            if ! unpack:gem; then
+                debug "failed to unpack GEM+"
+                return 1
             fi
             ;;
         h)
-            install:gem:usage
+            show:install:gem:usage
             ;;
         *)
             error "Unknown option '$OPTARG'"
@@ -518,9 +520,10 @@ install:gem() {
         esac
     done
     if [[ $# -lt 1 ]]; then
-        error "Expected options"
-        install:gem:usage
-        return 1
+        if ! unpack:gem; then
+            debug "failed to unpack GEM+"
+            return 1
+        fi
     fi
 }
 #
@@ -561,32 +564,13 @@ install:gpl() {
     fi
 }
 #
-# install Visual Basic Runtime
-#
-install:vbr() {
-    if get "$VB_RUNTIME_ZIP" "$VB_RUNTIME_URL" "$VB_RUNTIME_ZIP_SHA"; then
-        if unzip:to "$VB_RUNTIME_ZIP" "$CACHE"; then
-            # unzipped to cache
-            debug "Running VB Runtime Installer"
-            if run:exe "$VB_RUNTIME_EXE"; then
-                VB_RUNTIME_INSTALLED=1
-                info "VB Runtime Installed"
-            else
-                error "Can't install VB Runtime"
-            fi
-        else
-            debug "can't unzip 'VB Runtime'"
-        fi
-    fi
-}
-#
 # Usage:
 #   install:selected [options] [...selection]
 # Opts:
 #   -h 'shows usage''
 # Example
 #  'install # gpl'
-#  'install gpl gem vbr'
+#  'install gpl gem'
 #
 install:selected() {
     install:selected:h() {
@@ -595,7 +579,7 @@ install:selected() {
         echo "Options:"
         echo "  -h shows this"
         echo "Targets:"
-        echo "  gpl gem vbr"
+        echo "  gpl gem"
         echo "Example:"
         echo "  '$_filename install gpl gem vbr'"
     }
@@ -609,9 +593,11 @@ install:selected() {
         esac
     done
     if [[ $# -lt 1 ]]; then
-        error "Expected args"
-        install:selected:h
-        return 1
+        # if no arguments start default
+        install:gpl $@
+        debug "install:gpl completed with status $?"
+        install:gem $@
+        debug `install:gem completed with status $?`
     else
         for a in $@; do
             case "$a" in
@@ -624,10 +610,6 @@ install:selected() {
                 shift
                 install:gem $@
                 ;;
-            vbr)
-                shift
-                install:vbr $@
-                ;;
             *)
                 error "Don't know how to install '$a'"
                 exit 1
@@ -635,19 +617,6 @@ install:selected() {
             esac
         done
     fi
-}
-#
-# Args:
-#   $1  'zip file'
-#   $2  'target directory'
-#
-unzip:to() {
-    if [ ! -f "$(which unzip)" ]; then
-        error "Can't find 'unzip'"
-    fi
-    debug "Unzipping '$1' to '$2'"
-    unzip -oq "$1" -d "$2"
-    return $?
 }
 #
 #
@@ -790,18 +759,21 @@ uninstall:selected() {
 
 }
 #
-#
+# wineprefix sub path
+#   Args:
+#       $1  'sub path'
+#               unix or windows
+#               windows path must be absolute
+#            can be empty
+#   returns: wineprefix/sub | or unix path of windows path
 #
 pfx:path() {
-    debug "args=$@"
-
-    # TODO: fix this, translate win path
     if [ ! -z "$1" ]; then
         if [[ "$1" =~ ^[a-zA-Z]: ]]; then
             # debug "is wine path"
             local p="$(WINEPREFIX=$WINEPREFIX winepath "$1")"
         else
-            debug "Not wine path $1"
+            # debug "Not wine path $1"
             local p="$WINEPREFIX/$1"
             if [ ! -e "$p" ]; then
                 error "Can't find '$p'"
@@ -832,14 +804,14 @@ open:terminal() {
         ;;
     $OS_WSL)
         if cd "$p"; then
-            x-terminal-emulator & # --working-director
+            x-terminal-emulator &
         else
             return 1
         fi
         ;;
     $OS_LINUX)
         if cd "$p"; then
-            x-terminal-emulator "--working-directory=$PWD" & # doesn't always work
+            x-terminal-emulator &
         else
             return 1
         fi
