@@ -29,7 +29,7 @@ It creates a new wine prefix at `~/.local/share/GPL/pfx`
 
 And keeps the downloads at `~/.cache/GPL`
 
-## Start ing GPL and GEM+
+## Starting GPL and GEM+
 
 ```
   WINEPREFIX=~/.local/share/GPL/pfx wine 'c:\Sierra\GPL\gpl.exe'
