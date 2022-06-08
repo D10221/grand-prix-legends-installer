@@ -3,6 +3,18 @@ Grand Prix Legends installer for Wine
 
 Creates wine prefix, mounts iso, downloads and runs the installer
 
+## Install
+  - Download 'https://raw.githubusercontent.com/D10221/grand-prix-legends-installer/main/gplnx'
+  ```bash
+    wget 'https://raw.githubusercontent.com/D10221/grand-prix-legends-installer/main/gplnx
+  ```
+  - make it executable  
+      ```chmod +x gplnx```      
+  - run it 
+  ```bash
+  ./gplnx install
+  ```
+
 ## Works on:
   - Ubuntu
   - Maybe Debian/Ubuntu derivatives
