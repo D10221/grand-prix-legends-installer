@@ -97,7 +97,8 @@ It should start gplc67.exe with ~/.local/share/GPL/pfx as wine prefix
 
 ## Was Tested on:
 
-- Ubuntu 20.4
+- Ubuntu 20.04
+- Ubuntu 22.04
 - MacOS Monterrey 12.3.1
 - Windows 10 Wsl Ubuntu 20.4
 
