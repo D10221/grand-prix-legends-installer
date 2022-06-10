@@ -480,13 +480,15 @@ unpack:gem() {
 #
 install:gem() {
     # show usage
-    show:install:gem:usage() {
-        echo "Installs GEM+"
-        echo "$_filename install gem [options] [args]"
-        echo "Options: "
-        echo " -i Runs GEM+ installer"
-        echo " -u Unpacks GEM+ installer into c:\GPLSecrets , find GEM+ in c:\GPLSecrets\app"
-        echo " -h Shows this"
+    h() {
+        cat <<_EOF_
+Installs GEM+
+$_filename install gem [options] [args]
+Options:
+    -i Runs GEM+ installer
+    -u Unpacks GEM+ installer into c:\GPLSecrets , find GEM+ in c:\GPLSecrets\app
+    -h Shows this
+_EOF_
     }
     while getopts ":iuh" arg; do
         case ${arg} in
@@ -510,9 +512,7 @@ install:gem() {
                 return 1
             fi
             ;;
-        h)
-            show:install:gem:usage
-            ;;
+        h) h ;;
         *)
             error "Unknown option '$OPTARG'"
             return 1
@@ -573,15 +573,20 @@ install:gpl() {
 #  'install gpl gem'
 #
 install:selected() {
-    install:selected:h() {
-        echo "Usage: "
-        echo "  'install [options] [targets]'"
-        echo "Options:"
-        echo "  -h shows this"
-        echo "Targets:"
-        echo "  gpl gem"
-        echo "Example:"
-        echo "  '$_filename install gpl gem vbr'"
+    h() {
+        cat <<_EOF_
+Install:        
+    Usage:
+        'install [options] [targets]'
+    Options:
+        -h shows this
+    Targets:
+        gpl gem
+    Example:
+        '$_filename install gpl gem'
+    Notes:
+        target 'gem' has options
+_EOF_
     }
     while getopts ":h" arg; do
         case ${arg} in
@@ -597,7 +602,7 @@ install:selected() {
         install:gpl $@
         debug "install:gpl completed with status $?"
         install:gem $@
-        debug `install:gem completed with status $?`
+        debug $(install:gem completed with status $?)
     else
         for a in $@; do
             case "$a" in
@@ -692,20 +697,22 @@ remove() {
 #   '$@' gpl gem pfx
 #
 uninstall:selected() {
-    uninstall:selected:h() {
-        echo "$_filename uninstall [options] [selection]"
-        echo "Removes cache, prefix, gpl or GEM+"
-        echo "Options:"
-        echo " -h   'shows this"
-        echo " -y   'answer yes"
-        echo "selection:"
-        echo "  cache, pfx, gpl , gem"
+    h() {
+        cat <<_EOF_
+Removes cache, prefix, gpl or GEM+
+    $_filename uninstall [options] [selection]
+Options:
+    -h   'shows this
+    -y   'answer yes
+selection:
+    cache, pfx, gpl , gem
+_EOF_
     }
     local YES=0
     while getopts ":hy" arg; do
         case $arg in
         h)
-            uninstall:selected:h
+            h
             return 0
             ;;
         y)
@@ -900,7 +907,7 @@ start:exe() {
     local f=$(find $DRIVE_C -name "$1".exe)
     if [ -f "$f" ]; then
         local p="$(WINEPREFIX=$WINEPREFIX winepath -w "$f")"
-        echo "winepath=$p"
+        debug "winepath=$p"
         run:on:prefix "$WINE" start "$p" /d "c:\Sierra\GPL" # start always on gpl.exe's path ?
         return 0
     fi
@@ -924,72 +931,70 @@ start:app() {
 # show usage
 #
 usage() {
-    echo "Grand Prix Legends wine Installer v$VERSION"
-    echo "Usage: '$_filename [verb] [options]'"
-    echo "Verbs: "
-    echo "  install [options?] [target]?   'run GPL installers'"
-    echo "      options:"
-    echo "          -h help"
-    echo "      target:"
-    echo "          gpl gem vbr"
-    echo "      example:"
-    echo "          \$gpli install -r gpl # REINSTALL gpl"
-    echo "          \$gpli install -r gpl gem vbr # reinstall gpl gem -u vbr"
-    echo "      Notes:   gem target has options see install gem -h for details"
-    echo "  uninstall [options?] 'remove cache,GPL,GEM and wine Prefix'"
-    echo "      options: "
-    echo "          'gpl'   remove 'c:\Sierra\gpl'"
-    echo "          'geml'  remove 'c:\Sierra\gpl'"
-    echo "          'pfx'      remove 'prefix' (default)"
-    echo "  run [cmd]"
-    echo "      \"run something on gpl's WINEPREFIX\""
-    echo "      examples:"
-    echo "          '\$$_filename run wine winecfg'"
-    echo "  wine [cmd]"
-    echo "      \"run wine 'something' on gpl's WINEPREFIX\""
-    echo "      examples:"
-    echo "          '\$$_filename wine winecfg'"
-    echo "  open [options] [path]"
-    echo "      opens \$WINEPREFIX location or sub location with default file manager or terminal"
-    echo "      options:"
-    echo "              -x with default filemanager"
-    echo "              -t with default terminal"
-    echo "              -h shows this"
-    echo "      examples:"
-    echo "          '\$$_filename open' # opens \$WINEPREFIX"
-    echo "          '\$$_filename open dirve_c ' # opens \$WINEPREFIX/drive_c"
-    echo "          '\$$_filename open 'c:\Sierra' ' # opens \$WINEPREFIX/drive_c/Sierra"
-    echo "  start [what]"
-    echo "      starts GPL or GEM+"
-    echo "      examples:"
-    echo "          '\$$_filename start gpl'  # starts wine 'c:\Sierra\GPL\gpl.exe'"
-    echo "          '\$$_filename start gem+' # starts wine 'c:\GPLSecrets\GEM+\GEMP2.exe'"
-    echo ""
-    echo "Options:"
-    echo "  -h --help      'Show this'"
-    echo "  -v --version   'Show '$_filename' version'"
-    echo "  --nomount      'Do not try to mount ISO'"
-    if [ $OS == $OS_WSL ]; then
-        echo "  --wsldrive='<drive>'"
-        echo "      desc:   'drive letter to mount in wsl environment'"
-        echo "              'required on WSL'"
-        echo "      <drive>: [az-AZ]"
-        echo "      example '--wsldrive=d'"
-    fi
-    echo ""
-    echo "Vars:"
-    echo " NOMOUNT         'Do not try to mount ISO'"
-    echo " NOUSERMOUNT     'Do not try to mount ISO in userspace'"
-    echo " NOROOTMOUNT     'Do not try to mount ISO if requires root access"
-    echo " DEBUG           'show debug info'"
-    echo "                  example '\$ DEBUG='*' ./gpli.local install'"
-    if [ $OS == $OS_WSL ]; then
-        echo " WSLDRIVE        'show debug info'"
-        echo "    desc:        'drive letter to mount in wsl environment'"
-        echo "                 'required to install GPL on WSL'"
-        echo "      <drive>: [az-AZ]"
-        echo "                  example '\$ WSLDRIVE=d ./gpli.local install'"
-    fi
+    cat <<_EOF_
+Grand Prix Legends wine Installer v$VERSION
+    Usage: '$_filename [options]' [verb]
+    Verbs: 
+      install [options?] [target]?   'run GPL installers'
+          options:
+              -h help
+          target:
+              gpl gem vbr
+          example:
+              \$gpli install -r gpl # REINSTALL gpl
+              \$gpli install -r gpl gem vbr # reinstall gpl gem -u vbr
+          Notes:   gem target has options see install gem -h for details
+      uninstall [options?] 'remove cache,GPL,GEM and wine Prefix'
+          options: 
+              'gpl'   remove 'c:\Sierra\gpl'
+              'geml'  remove 'c:\Sierra\gpl'
+              'pfx'      remove 'prefix' (default)
+      run [cmd]
+          \"run something on gpl's WINEPREFIX\"
+          examples:
+              '\$$_filename run wine winecfg'
+      wine [cmd]
+          \"run wine 'something' on gpl's WINEPREFIX\"
+          examples:
+              '\$$_filename wine winecfg'
+      open [options] [path]
+          opens \$WINEPREFIX location or sub location with default file manager or terminal
+          options:
+                  -x with default filemanager
+                  -t with default terminal
+                  -h shows this
+          examples:
+              '\$$_filename open' # opens \$WINEPREFIX
+              '\$$_filename open dirve_c ' # opens \$WINEPREFIX/drive_c
+              '\$$_filename open 'c:\Sierra' ' # opens \$WINEPREFIX/drive_c/Sierra
+      start [what]
+          starts GPL or GEM+
+          examples:
+              '\$$_filename start gpl'  # starts wine 'c:\Sierra\GPL\gpl.exe'
+              '\$$_filename start gem+' # starts wine 'c:\GPLSecrets\GEM+\GEMP2.exe'
+    
+    Options:
+      -h --help      'Show this'
+      -v --version   'Show '$_filename' version'
+      --nomount      'Do not try to mount ISO'
+      --wsldrive='<drive>'
+          desc:   'drive letter to mount in wsl environment'
+                  'required on WSL'
+          <drive>: [az-AZ]
+          example '--wsldrive=d'
+    
+    Vars:
+     NOMOUNT         'Do not try to mount ISO'
+     NOUSERMOUNT     'Do not try to mount ISO in userspace'
+     NOROOTMOUNT     'Do not try to mount ISO if requires root access
+     DEBUG           'show debug info'
+                      example '\$ DEBUG='*' ./gpli.local install'
+     WSLDRIVE        'show debug info'
+        desc:        'drive letter to mount in wsl environment'
+                     'required to install GPL on WSL'
+          <drive>: [az-AZ]
+                      example '\$ WSLDRIVE=d ./gpli.local install'
+_EOF_
 }
 #
 if [[ $# -lt 1 ]]; then
