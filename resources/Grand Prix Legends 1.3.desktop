@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Grand Prix Legends 1.3
+Exec=env WINEPREFIX="$HOME/.local/share/GPL/pfx" wine C:\\\\Sierra\\\\GPL\\\\gplc67.exe 
+Type=Application
+StartupNotify=true
+Comment=Grand Prix Legends 1.3
+Path=$HOME/.local/share/GPL/pfx/dosdevices/c:/Sierra/GPL
+Icon=BF25_gplc67.0
+StartupWMClass=gplc67.exe
