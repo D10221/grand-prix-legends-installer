@@ -870,14 +870,21 @@ open:x() {
 #   -x open in terminal
 #
 open:pfx() {
+    h() {
+        cat << _EOF_
+$_filename open [options] [path]
+    options:
+        -h  'shows this'
+        -t  'open with default terminal'
+        -x  'open with default file manager'
+    path:
+        windows unix or path  
+_EOF_
+    }
     while getopts ':xth' arg; do
         case "$arg" in
         h)
-            echo "$_filename open [options] [path]"
-            echo "  options:"
-            echo "      -h  'shows this'"
-            echo "      -t  'open with default terminal'"
-            echo "      -x  'open with default file manager'"
+            h
             return 0
             ;;
         t)
